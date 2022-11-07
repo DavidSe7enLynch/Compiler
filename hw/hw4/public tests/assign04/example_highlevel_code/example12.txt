@@ -1,0 +1,33 @@
+/* variable 'x' allocated vreg 10 */
+/* variable 'y' allocated vreg 11 */
+/* variable 'p' allocated 8 bytes of storage at offset 0 */
+/* Function 'main' uses 8 bytes of memory and 10 virtual registers */
+	.section .text
+
+	.globl main
+main:
+	enter    $8
+	localaddr vr10, $0
+	mov_q    vr11, $0
+	add_q    vr12, vr10, vr11
+	mov_l    vr13, $2
+	mov_l    (vr12), vr13
+	localaddr vr10, $0
+	mov_q    vr11, $4
+	add_q    vr12, vr10, vr11
+	mov_l    vr13, $3
+	mov_l    (vr12), vr13
+	localaddr vr14, $0
+	mov_q    vr15, $0
+	add_q    vr16, vr14, vr15
+	localaddr vr17, $0
+	mov_q    vr18, $4
+	add_q    vr19, vr17, vr18
+	mov_l    vr21, (vr16)
+	mov_l    vr22, (vr19)
+	add_l    vr20, vr21, vr22
+	mov_l    vr0, vr20
+	jmp      .Lmain_return
+.Lmain_return:
+	leave    $8
+	ret      

@@ -21,30 +21,30 @@
 #include <cassert>
 #include "node_base.h"
 
-NodeBase::NodeBase() {
+NodeBase::NodeBase() : m_nextVreg(0), m_localTotalStorage(0) {
 }
 
 NodeBase::~NodeBase() {
 }
 
 // TODO: implement member functions
-void NodeBase::setType(std::shared_ptr<Type> type) {
+void NodeBase::setType(std::shared_ptr <Type> type) {
     typeNode = type;    // allow re-assign
 }
 
-std::shared_ptr<Type> NodeBase::getType() {
+std::shared_ptr <Type> NodeBase::getType() {
 //    assert(typeNode != nullptr);
-    if (symbolNode != nullptr)
-        return symbolNode->get_type();
-    else {
-        assert(typeNode != nullptr);
+    // if the node has both symbol and type, they can be different, for arrays
+    // array symbol, but base/pointer type
+    if (typeNode != nullptr)
         return typeNode;
-    }
+    else if (symbolNode != nullptr)
+        return symbolNode->get_type();
 }
 
 void NodeBase::setSymbol(Symbol *symbol) {
-    assert(typeNode == nullptr);    // a node cannot have both symbol and type
-    assert(symbolNode == nullptr);  // not assigned before
+//    assert(typeNode == nullptr);    // a node cannot have both symbol and type
+//    assert(symbolNode == nullptr);  // not assigned before
     symbolNode = symbol;
 }
 
@@ -83,25 +83,13 @@ bool NodeBase::getIsLiteral() {
     return isLiteral;
 }
 
-void NodeBase::setLiteralKind(LiteralValueKind kind) {
-    setIsLiteral(true);
-    literalKind = kind;
-    if (literalKind == LiteralValueKind::INTEGER) {
-        std::shared_ptr<Type> intType(new BasicType(BasicTypeKind::INT, true));
-        typeNode = intType;
-    } else if (literalKind == LiteralValueKind::CHARACTER) {
-        std::shared_ptr<Type> charType(new BasicType(BasicTypeKind::CHAR, true));
-        typeNode = charType;
-    } else if (literalKind == LiteralValueKind::STRING) {
-        std::shared_ptr<Type> charType(new BasicType(BasicTypeKind::CHAR, true));
-        std::shared_ptr<Type> ptrType(new PointerType(charType));
-        typeNode = ptrType;
-    }
-}
+//void NodeBase::setLiteralKind(LiteralValueKind kind) {
+//
+//}
 
 LiteralValueKind NodeBase::getLiteralKind() {
     assert(isLiteral);
-    return literalKind;
+    return m_literalValue.get_kind();
 }
 
 //void NodeBase::setIsInFunc(bool isinfunc) {
@@ -112,14 +100,24 @@ LiteralValueKind NodeBase::getLiteralKind() {
 //    return isInFunc;
 //}
 
-void NodeBase::setFuncName(std::string funcname) {
+//void NodeBase::setFuncName(std::string funcname) {
+//    isInFunc = true;
+//    funcName = funcname;
+//}
+//
+//std::string NodeBase::getFuncName() {
+//    assert(isInFunc);
+//    return funcName;
+//}
+
+void NodeBase::setFuncSymbol(Symbol *symbol) {
     isInFunc = true;
-    funcName = funcname;
+    funcSymbol = symbol;
 }
 
-std::string NodeBase::getFuncName() {
+Symbol *NodeBase::getFuncSymbol() {
     assert(isInFunc);
-    return funcName;
+    return funcSymbol;
 }
 
 void NodeBase::setIsArray(bool isarray) {
@@ -129,3 +127,50 @@ void NodeBase::setIsArray(bool isarray) {
 bool NodeBase::getIsArray() {
     return isArray;
 }
+
+void NodeBase::setNextVreg(int nextVreg) {
+    m_nextVreg = nextVreg;
+}
+
+int NodeBase::getNextVreg() const {
+    assert(m_nextVreg != 0);
+    return m_nextVreg;
+}
+
+void NodeBase::setLocalTotalStorage(unsigned int localTotalStorage) {
+    m_localTotalStorage = localTotalStorage;
+}
+
+unsigned NodeBase::getLocalTotalStorage() const {
+    return m_localTotalStorage;
+}
+
+void NodeBase::setOperand(const Operand &operand) {
+    m_operand = operand;
+}
+
+const Operand &NodeBase::getOperand() const {
+    return m_operand;
+}
+
+void NodeBase::setLiteralValue(const LiteralValue &other) {
+    m_literalValue = other;
+    setIsLiteral(true);
+    LiteralValueKind literalKind = m_literalValue.get_kind();
+    if (literalKind == LiteralValueKind::INTEGER) {
+        std::shared_ptr <Type> intType(new BasicType(BasicTypeKind::INT, true));
+        typeNode = intType;
+    } else if (literalKind == LiteralValueKind::CHARACTER) {
+        std::shared_ptr <Type> charType(new BasicType(BasicTypeKind::CHAR, true));
+        typeNode = charType;
+    } else if (literalKind == LiteralValueKind::STRING) {
+        std::shared_ptr <Type> charType(new BasicType(BasicTypeKind::CHAR, true));
+        std::shared_ptr <Type> ptrType(new PointerType(charType));
+        typeNode = ptrType;
+    }
+}
+
+LiteralValue &NodeBase::getLiteralValue() {
+    return m_literalValue;
+}
+

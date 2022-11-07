@@ -10,35 +10,39 @@
 // in a stack frame is essentially the same problem.
 class StorageCalculator {
 public:
-  enum Mode { STRUCT, UNION };
+    enum Mode {
+        STRUCT,
+        UNION
+    };
 
 private:
-  Mode m_mode;
-  unsigned m_size;
-  unsigned m_align;
-  bool m_finished;
+    Mode m_mode;
+    unsigned m_size;
+    unsigned m_align;
+    bool m_finished;
 
 public:
-  // Note that the start_offset parameter is useful if you are
-  // computing storage for local variables in a nested scope.
-  // (You can set it to be the total amount of storage used
-  // by the outer scopes.)
-  StorageCalculator(Mode mode = STRUCT, unsigned start_offset = 0);
-  ~StorageCalculator();
+    // Note that the start_offset parameter is useful if you are
+    // computing storage for local variables in a nested scope.
+    // (You can set it to be the total amount of storage used
+    // by the outer scopes.)
+    StorageCalculator(Mode mode = STRUCT, unsigned start_offset = 0);
 
-  // Add a field of given type.
-  // Returns the field's storage offset.
-  unsigned add_field(const std::shared_ptr<Type> &type);
+    ~StorageCalculator();
 
-  // Call this after all fields have been added.
-  // Adds padding at end (if necessary).
-  void finish();
+    // Add a field of given type.
+    // Returns the field's storage offset.
+    unsigned add_field(const std::shared_ptr <Type> &type);
 
-  // Get storage size of overall struct or union
-  unsigned get_size() const;
+    // Call this after all fields have been added.
+    // Adds padding at end (if necessary).
+    void finish();
 
-  // Get storage alignment of overall struct or union
-  unsigned get_align() const;
+    // Get storage size of overall struct or union
+    unsigned get_size() const;
+
+    // Get storage alignment of overall struct or union
+    unsigned get_align() const;
 };
 
 #endif // STORAGE_H

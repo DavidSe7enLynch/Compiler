@@ -7,9 +7,10 @@
 #include "type.h"
 #include "symtab.h"
 #include "ast_visitor.h"
+#include "literal_value.h"
 
 class Node;
-class LiteralValue;
+//class LiteralValue;
 
 class SemanticAnalysis : public ASTVisitor {
 private:
@@ -19,6 +20,8 @@ public:
     SemanticAnalysis();
 
     virtual ~SemanticAnalysis();
+
+    SymbolTable *get_global_symtab();
 
     virtual void visit_struct_type(Node *n);
 
@@ -61,9 +64,13 @@ public:
     virtual void visit_literal_value(Node *n);
 
     virtual void visit_pointer_declarator(Node *n);
+
     virtual void visit_array_declarator(Node *n);
+
     virtual void visit_named_declarator(Node *n);
+
     virtual void visit_field_definition_list(Node *n);
+
     virtual void visit_return_expression_statement(Node *n);
 
 private:
@@ -91,15 +98,19 @@ private:
 
     void visit_Assign(Node *n);
 
-//    std::shared_ptr<Type> getRefType(Node *n);
+//    void analyzeAssignLiteral(std::shared_ptr<Type> ltype, LiteralValueKind literalKind, Node *n);
 
-    void analyzeAssignLiteral(std::shared_ptr<Type> ltype, LiteralValueKind literalKind, Node *n);
-
-    void analyzeAssignRef(std::shared_ptr<Type> ltype, std::shared_ptr<Type> rtype, Node *n);
+    void analyzeAssignRef(std::shared_ptr <Type> ltype, std::shared_ptr <Type> rtype, Node *n);
 
     void isLvalue(Node *n);
 
-//    bool isInteger(Node *n);
+    void passFuncSymbAllNodes(Node *n);
+
+//    Node *promote_to_int(Node *n);
+
+    Node *implicit_conversion(Node *n, const std::shared_ptr<Type> &type);
+
+    void binaryConvCheck(Node *n);
 };
 
 #endif // SEMANTIC_ANALYSIS_H

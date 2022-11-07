@@ -1,11 +1,14 @@
-This HW3 is about semantic analysis of a nearly c language
+This HW4 is about high-level code generation
 
-I think the two trick parts are handling literal values and arrays
+Several tricky parts:
 
-1. As we need to compare types between operands, and operands may be variables or literal values, it is better to give those nodes with literal value an appropriate type,
-    so that the comparison could be much simplified.
+1. to get both array symbol and base/pointer type from one node, I modified the getType() function and sth. else so that one node can have different type and symbol
 
-2. The array name itself could appear in function call arguments, right values, as it should be considered as a pointer to the base type the array contains;
-    while at the same time, the array element reference could appear in function parameters, left values, as it should be just the base type of the array
+2. so many const functions in type.h, such as storage calculator, which prevents me to set memory offset for each field of the struct. Therefore, I can only set them again.
 
-3. My codes could still be simplified, as the first idea was implemented almost at the end, which means that there might be some redundant codes.
+3. const get_member() function requires mutable member variable
+
+4. signed converting to unsigned requires no change
+
+5. string values need to be specially dealt with. I created a string storage struct type, and added a vector containing these structs inside LocalStorageAllocation class.
+Whenever I reached a node with string literal value, I added a struct to the vector, and created appropriate operand stored in that node.

@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include "symtab.h"
+#include "exceptions.h"
 
 ////////////////////////////////////////////////////////////////////////
 // Symbol implementation
@@ -11,7 +12,10 @@ Symbol::Symbol(SymbolKind kind, const std::string &name, const std::shared_ptr<T
   , m_name(name)
   , m_type(type)
   , m_symtab(symtab)
-  , m_is_defined(is_defined) {
+  , m_is_defined(is_defined)
+  , m_storage(StorageKind::VREGISTER, -1) {
+    // init of storage, set vreg to -1, which is impossible, waiting for future setStorage
+//    m_storage = Storage(StorageKind::VREGISTER, -1);
 }
 
 Symbol::~Symbol() {
@@ -39,6 +43,35 @@ SymbolTable *Symbol::get_symtab() const {
 
 bool Symbol::is_defined() const {
   return m_is_defined;
+}
+
+void Symbol::setStorage(StorageKind kind, int vreg) {
+    m_storage = Storage(kind, vreg);
+}
+
+void Symbol::setStorage(StorageKind kind, unsigned int memOffset) {
+    m_storage = Storage(kind, memOffset);
+}
+
+void Symbol::setStorage(StorageKind kind, std::string globalName) {
+    m_storage = Storage(kind, globalName);
+}
+
+const Storage &Symbol::getStorage() const {
+    return m_storage;
+}
+
+bool Symbol::isGlobal() const {
+    assert(m_symtab != nullptr);
+    return m_symtab->isGlobal();
+}
+
+void Symbol::setReqStorKind(StorageKind kind) {
+    m_reqStorKind = kind;
+}
+
+StorageKind Symbol::getReqStorKind() {
+    return m_reqStorKind;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -153,3 +186,66 @@ int SymbolTable::get_depth() const {
 
   return depth;
 }
+
+bool SymbolTable::isGlobal() const {
+    return (m_parent == nullptr);
+}
+
+
+////////////////////////////////////////////////////////////////////////
+// Storage implementation
+////////////////////////////////////////////////////////////////////////
+
+
+Storage::Storage(StorageKind kind, int vreg): m_kind(kind), m_vreg(vreg), m_memOffset(0), m_globalName("") {
+    assert(m_kind == StorageKind::VREGISTER);
+}
+
+Storage::Storage(StorageKind kind, unsigned int memOffset): m_kind(kind), m_vreg(0), m_memOffset(memOffset), m_globalName("") {
+    assert(m_kind == StorageKind::MEMORY);
+}
+
+Storage::Storage(StorageKind kind, std::string globalName): m_kind(kind), m_vreg(0), m_memOffset(0), m_globalName(globalName) {
+    assert(m_kind == StorageKind::GLOBAL);
+}
+
+StorageKind Storage::getKind() const {
+    switch (m_kind) {
+        case StorageKind::VREGISTER:
+            assert(m_memOffset == 0);
+            assert(m_globalName == "");
+            return m_kind;
+        case StorageKind::MEMORY:
+            assert(m_vreg == 0);
+            assert(m_globalName == "");
+            return m_kind;
+        case StorageKind::GLOBAL:
+            assert(m_vreg == 0);
+            assert(m_memOffset == 0);
+            return m_kind;
+        default:
+            RuntimeError::raise("wrong storage type\n");
+    }
+}
+
+int Storage::getVreg() const {
+    assert(m_memOffset == 0);
+    assert(m_globalName == "");
+    assert(m_kind == StorageKind::VREGISTER);
+    return m_vreg;
+}
+
+unsigned Storage::getMemOffset() const {
+    assert(m_vreg == 0);
+    assert(m_globalName == "");
+    assert(m_kind == StorageKind::MEMORY);
+    return m_memOffset;
+}
+
+std::string Storage::getGlobalName() const {
+    assert(m_vreg == 0);
+    assert(m_memOffset == 0);
+    assert(m_kind == StorageKind::GLOBAL);
+    return m_globalName;
+}
+

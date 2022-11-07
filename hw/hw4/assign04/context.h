@@ -25,6 +25,8 @@
 #include <string>
 #include "semantic_analysis.h"
 #include "module_collector.h"
+#include "local_storage_allocation.h"
+
 class Node;
 
 // The Context class gathers together all of the objects/data
@@ -32,29 +34,34 @@ class Node;
 // passes and transformations.
 class Context {
 private:
-  Node *m_ast;
-  SemanticAnalysis m_sema;
+    Node *m_ast;
+    SemanticAnalysis m_sema;
 
-  // copy ctor and assignment operator not allowed
-  Context(const Context &);
-  Context &operator=(const Context &);
+    LocalStorageAllocation m_storAlloc;
+
+    // copy ctor and assignment operator not allowed
+    Context(const Context &);
+
+    Context &operator=(const Context &);
 
 public:
-  Context();
-  ~Context();
+    Context();
 
-  // scan the input and store the resulting tokens in a vector
-  void scan_tokens(const std::string &filename, std::vector<Node *> &tokens);
+    ~Context();
 
-  // Parse an input file and build an AST
-  void parse(const std::string &filename);
+    // scan the input and store the resulting tokens in a vector
+    void scan_tokens(const std::string &filename, std::vector<Node *> &tokens);
 
-  // Get pointer to root of AST
-  Node *get_ast() const { return m_ast; }
+    // Parse an input file and build an AST
+    void parse(const std::string &filename);
 
-  // TODO: add member functions for semantic analysis, code generation, etc.
-  void analyze();
-  void highlevel_codegen(ModuleCollector *module_collector);
+    // Get pointer to root of AST
+    Node *get_ast() const { return m_ast; }
+
+    // TODO: add member functions for semantic analysis, code generation, etc.
+    void analyze();
+
+    void highlevel_codegen(ModuleCollector *module_collector);
 };
 
 #endif // CONTEXT_H

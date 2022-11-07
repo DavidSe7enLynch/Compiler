@@ -25,6 +25,7 @@
 #include "type.h"
 #include "symtab.h"
 #include "literal_value.h"
+#include "operand.h"
 
 // The Node class will inherit from this type, so you can use it
 // to define any attributes and methods that Node objects should have
@@ -33,19 +34,28 @@
 class NodeBase {
 private:
     // TODO: fields (pointer to Type, pointer to Symbol, etc.)
-    std::shared_ptr<Type> typeNode;
+    std::shared_ptr <Type> typeNode;
     Symbol *symbolNode;
 
     bool isMember;
     std::string memberName;
 
     bool isLiteral;
-    LiteralValueKind literalKind;
+//    LiteralValueKind literalKind;
+    LiteralValue m_literalValue;
 
     bool isInFunc;
-    std::string funcName;
+//    std::string funcName;
+    Symbol *funcSymbol;
 
     bool isArray;
+
+    // only useful for statement list node
+    int m_nextVreg;
+    // only useful for function definition node
+    unsigned m_localTotalStorage;
+
+    Operand m_operand;
 
     // copy ctor and assignment operator not supported
     NodeBase(const NodeBase &);
@@ -57,30 +67,61 @@ public:
 
     virtual ~NodeBase();
 
-    void setType(std::shared_ptr<Type> type);
-    std::shared_ptr<Type> getType();
+    void setType(std::shared_ptr <Type> type);
+
+    std::shared_ptr <Type> getType();
 
     void setSymbol(Symbol *symbol);
+
     Symbol *getSymbol();
+
     bool hasSymbol();
 
     void setMemberName(std::string name);
+
     std::string getMemberName();
+
     void setIsMember(bool ismember);
+
     bool getIsMember();
 
     void setIsLiteral(bool isliteral);
+
     bool getIsLiteral();
-    void setLiteralKind(LiteralValueKind kind);
+
+//    void setLiteralKind(LiteralValueKind kind);
+
     LiteralValueKind getLiteralKind();
 
 //    void setIsInFunc(bool isinfunc);
 //    bool getIsInFunc();
-    void setFuncName(std::string funcname);
-    std::string getFuncName();
+//    void setFuncName(std::string funcname);
+
+//    std::string getFuncName();
+
+    void setFuncSymbol(Symbol *symbol);
+
+    Symbol *getFuncSymbol();
 
     void setIsArray(bool isarray);
+
     bool getIsArray();
+
+    void setNextVreg(int nextVreg);
+
+    int getNextVreg() const;
+
+    void setLocalTotalStorage(unsigned localTotalStorage);
+
+    unsigned getLocalTotalStorage() const;
+
+    void setOperand(const Operand &operand);
+
+    const Operand &getOperand() const;
+
+    void setLiteralValue(const LiteralValue &other);
+
+    LiteralValue &getLiteralValue();
 };
 
 #endif // NODE_BASE_H

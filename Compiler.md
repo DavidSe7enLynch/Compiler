@@ -1,7 +1,9 @@
 # Compiler
 
-- debug
-- global storage of types?
-- x86
-- unspecified storage
-- struct *next
+- instruction_seq.h has_label
+
+- cannot set offset to member
+
+- sign convert to unsign
+
+  
