@@ -1,9 +1,14 @@
-// test string output
-
-void print_str(const char *s);
+struct Point {
+    int x, y;
+};
 
 int main(void) {
-    print_str("Hello, world\n");
-    return 0;
-}
+    struct Point p, *q;
 
+    q = &p;
+
+    q->x = 2;
+    q->y = 3;
+
+    return q->x + q->y;
+}

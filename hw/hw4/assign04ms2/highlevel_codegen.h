@@ -67,4 +67,6 @@ private:
     std::string next_label();
 
     Operand nextTempOperand();
+
+    Operand setToMemref(Operand operand, Node *n);
 };

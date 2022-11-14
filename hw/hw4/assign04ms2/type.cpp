@@ -126,7 +126,7 @@ std::shared_ptr <Type> Member::get_type() const {
 }
 
 void Member::setOffset(unsigned int offset) const {
-    std::printf("set offset, %d, name: %s\n", offset, m_name.c_str());
+//    std::printf("set offset, %d, name: %s\n", offset, m_name.c_str());
     m_offset = offset;
 }
 
@@ -442,7 +442,7 @@ bool StructType::is_struct() const {
 unsigned StructType::get_storage_size() const {
     if (m_storage_size == 0U)
         calculate_storage();
-    std::printf("get storage size, field offset: %d\n", get_member(0).getOffset());
+//    std::printf("get storage size, field offset: %d\n", get_member(0).getOffset());
     return m_storage_size;
 }
 
@@ -459,7 +459,7 @@ void StructType::calculate_storage() const {
         unsigned memOffset = scalc.add_field(member.get_type());
         // add mem offset info to each field
         member.setOffset(memOffset);
-        std::printf("calculate storage: member offset: %d\n", member.getOffset());
+//        std::printf("calculate storage: member offset: %d\n", member.getOffset());
     }
     scalc.finish();
     m_storage_size = scalc.get_size();

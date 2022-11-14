@@ -15,8 +15,8 @@ main:
 	mov_q    vr11, (vr10)
 	mov_l    vr12, $17
 	mov_l    (vr11), vr12
-	localaddr vr13, $0
-	mov_l    vr0, (vr13)
+	localaddr vr11, $0
+	mov_l    vr0, (vr11)
 	jmp      .Lmain_return
 .Lmain_return:
 	leave    $16

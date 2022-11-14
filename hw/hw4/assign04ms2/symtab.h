@@ -87,6 +87,8 @@ public:
 
     std::shared_ptr <Type> get_type() const;
 
+    void setType(std::shared_ptr<Type> type);
+
     SymbolTable *get_symtab() const;
 
     bool is_defined() const;

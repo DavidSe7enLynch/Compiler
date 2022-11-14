@@ -273,7 +273,7 @@ void HighLevelCodegen::visit_function_call_expression(Node *n) {
     // assign operand vr0, which is the return value of the function, to this node
 
     // move arguments to argument vregs
-    std::printf("in func call\n");
+//    std::printf("in func call\n");
     Node *argList = n->get_kid(1);
     for (auto i = 0; i < argList->get_num_kids(); i++) {
         Node *arg = argList->get_kid(i);
@@ -294,7 +294,7 @@ void HighLevelCodegen::visit_array_element_ref_expression(Node *n) {
     // 2 kids
     // 0: var ref: array name
     // 1: var ref / literal val: index
-//    std::printf("in arr ref\n");
+
     Node *arr = n->get_kid(0);
     Node *idx = n->get_kid(1);
 
@@ -304,20 +304,30 @@ void HighLevelCodegen::visit_array_element_ref_expression(Node *n) {
     visit(arr);
     visit(idx);
 
+    // if 2-D array
+    // then kid0 type must be array
+    // set operand of kid0 back to vreg (from memref)
+    if (arr->getType()->is_array()) {
+        arr->setOperand(arr->getOperand().memref_to());
+    }
+
     // n has type of base_type, which contains the info of size
     int sizeElem = n->getType()->get_storage_size();
 
     Operand tempOperand1 = nextTempOperand();
     Operand tempOperand2 = nextTempOperand();
 
-    HighLevelOpcode mulOpcode = get_opcode(HINS_mul_b, n->getType());
+    // calculate address, must use 64bit
+
+//    HighLevelOpcode mulOpcode = get_opcode(HINS_mul_b, n->getType());
+    HighLevelOpcode mulOpcode = HINS_mul_q;
     m_hl_iseq->append(new Instruction(mulOpcode,
                                       tempOperand1,
                                       idx->getOperand(),
                                       Operand(Operand::IMM_IVAL, sizeElem)));
 
-    HighLevelOpcode addOpcode = get_opcode(HINS_add_b, n->getType());
-
+//    HighLevelOpcode addOpcode = get_opcode(HINS_add_b, n->getType());
+    HighLevelOpcode addOpcode = HINS_add_q;
     m_hl_iseq->append(new Instruction(addOpcode,
                                       tempOperand2,
                                       tempOperand1,
@@ -325,6 +335,7 @@ void HighLevelCodegen::visit_array_element_ref_expression(Node *n) {
 
 //    std::printf("array ele\n");
     n->setOperand(tempOperand2.to_memref());
+//    n->setOperand(setToMemref(tempOperand2, n));
 }
 
 void HighLevelCodegen::visit_variable_ref(Node *n) {
@@ -352,6 +363,7 @@ void HighLevelCodegen::visit_variable_ref(Node *n) {
             } else {
 //                std::printf("var ref, Operand: %d\n", tempOperand.get_kind() == Operand::VREG);
                 n->setOperand(tempOperand.to_memref());
+//                n->setOperand(setToMemref(tempOperand, n));
             }
             break;
         }
@@ -390,6 +402,7 @@ void HighLevelCodegen::visit_unary_expression(Node *n) {
             HighLevelOpcode movOpcode = get_opcode(HINS_mov_b, val->getType()->get_base_type());
             Operand tempOperand = nextTempOperand();
             m_hl_iseq->append(new Instruction(movOpcode, tempOperand, val->getOperand().to_memref()));
+//            m_hl_iseq->append(new Instruction(movOpcode, tempOperand, setToMemref(val->getOperand(), n)));
             n->setOperand(tempOperand);
             break;
         }
@@ -410,19 +423,19 @@ void HighLevelCodegen::visit_field_ref_expression(Node *n) {
     Node *structNode = n->get_kid(0);
     visit(structNode);
 
-    Symbol *structSymbol = structNode->getSymbol();
     std::shared_ptr<Type> structType = structNode->getType();
 
     // get relative mem offset of field
     std::string fieldName = n->get_kid(1)->get_str();
     const Member *member = structType->find_member(fieldName);
     unsigned fieldOffset = member->getOffset();
-    std::printf("get offset, %d\n", fieldOffset);
+//    std::printf("get offset, %d\n", fieldOffset);
     Operand tempOperand1 = nextTempOperand();
     Operand tempOperand2 = nextTempOperand();
     m_hl_iseq->append(new Instruction(HINS_mov_q, tempOperand1, Operand(Operand::IMM_IVAL, fieldOffset)));
     m_hl_iseq->append(new Instruction(HINS_add_q, tempOperand2, structNode->getOperand().memref_to(), tempOperand1));
     n->setOperand(tempOperand2.to_memref());
+//    n->setOperand(setToMemref(tempOperand2, n));
 }
 
 void HighLevelCodegen::visit_indirect_field_ref_expression(Node *n) {
@@ -437,7 +450,6 @@ void HighLevelCodegen::visit_indirect_field_ref_expression(Node *n) {
     Node *structNode = n->get_kid(0);
     visit(structNode);
 
-    Symbol *structSymbol = structNode->getSymbol();
     // pointer to struct -> struct
     std::shared_ptr<Type> structType = structNode->getType()->get_base_type();
 
@@ -445,13 +457,14 @@ void HighLevelCodegen::visit_indirect_field_ref_expression(Node *n) {
     std::string fieldName = n->get_kid(1)->get_str();
     const Member *member = structType->find_member(fieldName);
     unsigned fieldOffset = member->getOffset();
-    std::printf("get offset, %d\n", fieldOffset);
+//    std::printf("get offset, %d\n", fieldOffset);
     Operand tempOperand1 = nextTempOperand();
     Operand tempOperand2 = nextTempOperand();
     m_hl_iseq->append(new Instruction(HINS_mov_q, tempOperand1, Operand(Operand::IMM_IVAL, fieldOffset)));
     // different from direct field ref: don't need memref_to
     m_hl_iseq->append(new Instruction(HINS_add_q, tempOperand2, structNode->getOperand(), tempOperand1));
     n->setOperand(tempOperand2.to_memref());
+//    n->setOperand(setToMemref(tempOperand2, n));
 }
 
 void HighLevelCodegen::visit_implicit_conversion(Node *n) {
@@ -528,3 +541,9 @@ Operand HighLevelCodegen::nextTempOperand() {
     return Operand(Operand::VREG, m_nextCurVreg++);
 }
 
+Operand HighLevelCodegen::setToMemref(Operand operand, Node *n) {
+    Operand tempOperand = nextTempOperand();
+    HighLevelOpcode movOpcode = get_opcode(HINS_mov_b, n->getType());
+    m_hl_iseq->append(new Instruction(movOpcode, tempOperand, operand.to_memref()));
+    return tempOperand;
+}

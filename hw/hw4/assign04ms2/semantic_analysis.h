@@ -106,6 +106,8 @@ private:
 
     void passFuncSymbAllNodes(Node *n);
 
+    void passDeclareTypeAllNodes(Node *n, std::shared_ptr<Type> type);
+
 //    Node *promote_to_int(Node *n);
 
     Node *implicit_conversion(Node *n, const std::shared_ptr<Type> &type);

@@ -12,8 +12,8 @@ main:
 	call     read_i32
 	mov_l    vr12, vr0
 	mov_l    vr11, vr12
-	add_l    vr13, vr10, vr11
-	mov_l    vr0, vr13
+	add_l    vr12, vr10, vr11
+	mov_l    vr0, vr12
 	jmp      .Lmain_return
 .Lmain_return:
 	leave    $0

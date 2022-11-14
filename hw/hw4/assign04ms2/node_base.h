@@ -48,6 +48,8 @@ private:
 //    std::string funcName;
     Symbol *funcSymbol;
 
+    // only useful for array element ref node
+    // for 2-D array to check if it contains an array
     bool isArray;
 
     // only useful for statement list node

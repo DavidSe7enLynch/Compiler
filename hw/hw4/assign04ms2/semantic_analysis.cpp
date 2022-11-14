@@ -48,11 +48,13 @@ void SemanticAnalysis::visit_variable_declaration(Node *n) {
     passMember(n->get_kid(2));
 
     // set type for variables
-    for (auto i = 0; i < n->get_kid(2)->get_num_kids(); i++) {
-        Node *kid = n->get_kid(2)->get_kid(i);
-        kid->setType(type);
-        visit(kid);
-    }
+//    for (auto i = 0; i < n->get_kid(2)->get_num_kids(); i++) {
+//        Node *kid = n->get_kid(2)->get_kid(i);
+//        kid->setType(type);
+//        visit(kid);
+//    }
+    passDeclareTypeAllNodes(n->get_kid(2), type);
+    visit(n->get_kid(2));
 }
 
 void SemanticAnalysis::visit_basic_type(Node *n) {
@@ -526,12 +528,12 @@ void SemanticAnalysis::visit_field_ref_expression(Node *n) {
         Member member = structType->get_member(i);
         if (member.get_name() == fieldName) {
             std::shared_ptr<Type> type = member.get_type();
-            // handle array as pointer
-            if (type->is_array()) {
-                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
-                n->setType(ptrType);
-            } else
-                n->setType(type);
+//            // handle array as pointer
+//            if (type->is_array()) {
+//                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
+//                n->setType(ptrType);
+//            } else
+            n->setType(type);
             return;
         }
     }
@@ -557,12 +559,12 @@ void SemanticAnalysis::visit_indirect_field_ref_expression(Node *n) {
         Member member = structType->get_member(i);
         if (member.get_name() == fieldName) {
             std::shared_ptr<Type> type = member.get_type();
-            // handle array as pointer
-            if (type->is_array()) {
-                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
-                n->setType(ptrType);
-            } else
-                n->setType(type);
+//            // handle array as pointer
+//            if (type->is_array()) {
+//                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
+//                n->setType(ptrType);
+//            } else
+            n->setType(type);
 //            std::printf("indirect field: type: %s\n", n->getType()->as_str().c_str());
             return;
         }
@@ -572,29 +574,52 @@ void SemanticAnalysis::visit_indirect_field_ref_expression(Node *n) {
 }
 
 void SemanticAnalysis::visit_array_element_ref_expression(Node *n) {
-    // 2 kids
-    // 0: array name
-    // 1: index
-//    std::printf("array: %s\n", n->get_kid(0)->get_kid(0)->get_str().c_str());
+    // 1-D
+    // 2-D
     visit(n->get_kid(0));
     visit(n->get_kid(1));
 
-//    std::string arrayName = n->get_kid(0)->get_str();
-//    std::printf("in array element, array name = %s\n", arrayName.c_str());
-//    Symbol *arraySymbol = m_cur_symtab->lookup_recursive(arrayName);
-//    if (arraySymbol == nullptr)
-//        SemanticError::raise(n->get_loc(), "array does not exist\n");
-    std::shared_ptr<Type> ptrType = n->get_kid(0)->getType();
-
+    // implicit conversion for idx
+    // for x86-64 case, ptr is 64bit
     std::shared_ptr<Type> indexType = n->get_kid(1)->getType();
-//    std::printf("array symbol: %s, index symbol: %s\n", arraySymbol->get_name().c_str(),
-//                indexSymbol->get_name().c_str());
-    if (!(indexType->is_integral() && ptrType->is_pointer()))
-        SemanticError::raise(n->get_loc(), "wrong array element ref\n");
-    n->setType(ptrType->get_base_type());
-//    std::printf("in array element, n->type: %s\n", n->getType()->as_str().c_str());
-//    n->set_str(arrayName);
-    n->setSymbol(n->get_kid(0)->getSymbol());
+    if (indexType->get_basic_type_kind() != BasicTypeKind::LONG) {
+        std::shared_ptr<Type> longType(new BasicType(BasicTypeKind::LONG, indexType->is_signed()));
+        n->set_kid(1, implicit_conversion(n->get_kid(1), longType));
+    }
+
+    // 2-D
+    // kid0 is an array-ele-ref node, so its isarray is true
+    if (n->get_kid(0)->getType()->is_array() && n->get_kid(0)->getIsArray()) {
+        // 2 kids
+        // 0: array ref node
+        // 1: index
+
+        // array ref node has array symbol (2D) and basic type
+        // we need to make current node (n) have similar pattern, and at the same time, provide info for 2-D array
+        n->setSymbol(n->get_kid(0)->getSymbol());
+        n->setType(n->get_kid(0)->getType()->get_base_type());
+        n->setIsArray(true);
+//        std::printf("in 2-D array, kid0 type: %s, n->type: %s\n", n->get_kid(0)->getType()->as_str().c_str(), n->getType()->as_str().c_str());
+    }
+    // 1-D
+    else {
+        // 2 kids
+        // 0: array name
+        // 1: index
+
+        std::shared_ptr<Type> ptrType = n->get_kid(0)->getType();
+
+        std::shared_ptr<Type> indexType = n->get_kid(1)->getType();
+
+//        std::printf("in 1-D array, ptrType = %s\n", ptrType->as_str().c_str());
+
+        if (!(indexType->is_integral() && ptrType->is_pointer()))
+            SemanticError::raise(n->get_loc(), "wrong array element ref\n");
+
+        n->setType(ptrType->get_base_type());
+        n->setSymbol(n->get_kid(0)->getSymbol());
+        n->setIsArray(true);
+    }
 }
 
 void SemanticAnalysis::visit_variable_ref(Node *n) {
@@ -609,7 +634,7 @@ void SemanticAnalysis::visit_variable_ref(Node *n) {
     if (symbol->get_type()->is_array()) {
         std::shared_ptr<Type> ptrType(new PointerType(symbol->get_type()->get_base_type()));
         n->setType(ptrType);
-        n->setIsArray(true);
+//        n->setIsArray(true);
     }
     n->setSymbol(symbol);
 //    std::printf("in variable ref, symbol: %s\n", symbol->get_name().c_str());
@@ -816,15 +841,19 @@ void SemanticAnalysis::visit_named_declarator(Node *n) {
 }
 
 void SemanticAnalysis::visit_array_declarator(Node *n) {
-    // modify type to array
-    unsigned size = std::stoul(n->get_kid(1)->get_str());
-    std::shared_ptr<ArrayType> arrayType(new ArrayType(n->getType(), size));
-    n->setType(arrayType);
-    n->get_kid(0)->setType(arrayType);
-
+    // first go to named_declarator, and add a symbol
+    // then go back and set correct type to the symbol
+    // (to deal with multi-D arrays)
     passMember(n);
     visit(n->get_kid(0));
+
+    // modify type to array
+    unsigned size = std::stoul(n->get_kid(1)->get_str());
+    std::shared_ptr<ArrayType> arrayType(new ArrayType(n->get_kid(0)->getType(), size));
+    n->setType(arrayType);
+    n->get_kid(0)->getSymbol()->setType(arrayType);
     n->setSymbol(n->get_kid(0)->getSymbol());
+//    std::printf("in array declarator, type = %s\n", n->getType()->as_str().c_str());
 }
 
 void SemanticAnalysis::visit_field_definition_list(Node *n) {
@@ -925,10 +954,12 @@ void SemanticAnalysis::analyzeAssignRef(std::shared_ptr<Type> ltype, std::shared
 
 void SemanticAnalysis::isLvalue(Node *n) {
     int tag = n->get_tag();
-    // cannot assign to an array
-//    std::printf("in isLvalue, n->hasSymbol: %d\n", n->hasSymbol());
-    if (n->getIsArray())
-        SemanticError::raise(n->get_loc(), "assign to non-lvavlue (array)\n");
+
+//    // cannot assign to an array
+//    // if it has array symbol, but not isarray, which means it is not an array-ele-ref node
+//    // or it is, but it's less than its dim (for example, should be a[][], but only a[]), then it's type should be array
+//    if (n->getType()->is_array() || (!n->getIsArray() && n->getSymbol()->get_type()->is_array()))
+//        SemanticError::raise(n->get_loc(), "assign to non-lvavlue (array)\n");
     if (tag == AST_VARIABLE_REF || tag == AST_FIELD_REF_EXPRESSION || tag == AST_INDIRECT_FIELD_REF_EXPRESSION ||
         tag == AST_ARRAY_ELEMENT_REF_EXPRESSION) {
 
@@ -944,6 +975,14 @@ void SemanticAnalysis::passFuncSymbAllNodes(Node *n) {
         Node *kid = n->get_kid(i);
         kid->setFuncSymbol(funcSymbol);
         passFuncSymbAllNodes(kid);
+    }
+}
+
+void SemanticAnalysis::passDeclareTypeAllNodes(Node *n, std::shared_ptr<Type> type) {
+    for (auto i = 0; i < n->get_num_kids(); i++) {
+        Node *kid = n->get_kid(i);
+        kid->setType(type);
+        passDeclareTypeAllNodes(kid, type);
     }
 }
 
