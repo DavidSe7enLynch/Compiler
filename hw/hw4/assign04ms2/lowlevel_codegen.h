@@ -14,7 +14,8 @@ private:
     bool m_optimize;
 
     // 0: 10, 1: 11, 2: rax
-    int numTempReg;
+//    int numTempReg;
+    bool m_ifUseRAX;
 
     std::string m_returnLabel;
 

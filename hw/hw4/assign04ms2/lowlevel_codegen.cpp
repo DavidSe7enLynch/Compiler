@@ -227,6 +227,8 @@ namespace {
 void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shared_ptr <InstructionSequence> &ll_iseq) {
     HighLevelOpcode hl_opcode = HighLevelOpcode(hl_ins->get_opcode());
 
+    m_ifUseRAX = false;
+
     if (hl_opcode == HINS_enter) {
 //        std::printf("in enter\n");
         // Function prologue: this will create an ABI-compliant stack frame.
@@ -529,6 +531,32 @@ void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shar
         return;
     }
 
+    if (match_hl(HINS_neg_b, hl_opcode)) {
+        // neg vrdest vrsrc
+        // steps
+        // mov vrsrc r10
+        // mov $0 vrdest
+        // sub r10 vrdest
+
+        int size = highlevel_opcode_get_source_operand_size(hl_opcode);
+
+        LowLevelOpcode movOpcode = select_ll_opcode(MINS_MOVB, size);
+        LowLevelOpcode subOpcode = select_ll_opcode(MINS_SUBB, size);
+
+        Operand srcOperand = get_ll_operand(hl_ins->get_operand(1), size, ll_iseq);
+        Operand destOperand = get_ll_operand(hl_ins->get_operand(0), size, ll_iseq);
+
+        Operand::Kind kind = select_mreg_kind(size);
+        Operand r10(kind, MREG_R10);
+
+        Operand operand0 = Operand(Operand::IMM_IVAL, 0);
+
+        ll_iseq->append(new Instruction(movOpcode, srcOperand, r10));
+        ll_iseq->append(new Instruction(movOpcode, operand0, destOperand));
+        ll_iseq->append(new Instruction(subOpcode, r10, destOperand));
+        return;
+    }
+
     RuntimeError::raise("high level opcode %d not handled", int(hl_opcode));
 }
 
@@ -537,12 +565,10 @@ void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shar
 
 Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
                                         const std::shared_ptr <InstructionSequence> &ll_iseq) {
-    //
-
     // IMM_IVAL
     if (hl_opcode.is_imm_ival()) {
-        Operand oprand(Operand::IMM_IVAL, hl_opcode.get_imm_ival());
-        return oprand;
+        Operand operand(Operand::IMM_IVAL, hl_opcode.get_imm_ival());
+        return operand;
     }
 
     // VREG
@@ -596,8 +622,11 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
 
     // LABEL
     if (hl_opcode.is_label()) {
-        Operand operand(Operand::LABEL, hl_opcode.get_label());
-        return operand;
+        if (hl_opcode.get_kind() == Operand::IMM_LABEL) {
+            return Operand(Operand::IMM_LABEL, hl_opcode.get_label());
+        } else {
+            return Operand(Operand::LABEL, hl_opcode.get_label());
+        }
     }
 
     // VREG_MEM
@@ -615,7 +644,15 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         Operand highOperand = Operand(Operand::VREG, hl_opcode.get_base_reg());
         Operand srcOperand = get_ll_operand(highOperand, 8, ll_iseq);
 
-        Operand r11(Operand::MREG64, MREG_R11);
+        Operand r11;
+        if (m_ifUseRAX) {
+            r11 = Operand(Operand::MREG64, MREG_RAX);
+            m_ifUseRAX = false;
+        } else {
+            r11 = Operand(Operand::MREG64, MREG_R11);
+            m_ifUseRAX = true;
+        }
+
 //        Operand::Kind mregKind11 = select_mreg_kind(size);
 //        Operand r11(mregKind11, MREG_R11);
 //
@@ -630,5 +667,5 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
 }
 
 Operand LowLevelCodeGen::nextTempOperand() {
-    
+
 }

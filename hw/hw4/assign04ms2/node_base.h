@@ -40,6 +40,8 @@ private:
     bool isMember;
     std::string memberName;
 
+    std::string varName;
+
     bool isLiteral;
 //    LiteralValueKind literalKind;
     LiteralValue m_literalValue;
@@ -124,6 +126,10 @@ public:
     void setLiteralValue(const LiteralValue &other);
 
     LiteralValue &getLiteralValue();
+
+    void setVarName(std::string varname);
+
+    std::string getVarName();
 };
 
 #endif // NODE_BASE_H

@@ -16,13 +16,13 @@ LiteralValue::LiteralValue(char c)
 
 }
 
-LiteralValue::LiteralValue(const std::string &s)
-        : m_kind(LiteralValueKind::STRING), m_intval(0), m_strval(s), m_is_unsigned(false), m_is_long(false) {
+LiteralValue::LiteralValue(const std::string &s, const std::string &sRaw)
+        : m_kind(LiteralValueKind::STRING), m_intval(0), m_strval(s), m_is_unsigned(false), m_is_long(false), m_strRaw(sRaw) {
 }
 
 LiteralValue::LiteralValue(const LiteralValue &other)
         : m_kind(other.m_kind), m_intval(other.m_intval), m_strval(other.m_strval), m_is_unsigned(other.m_is_unsigned),
-          m_is_long(other.m_is_long) {
+          m_is_long(other.m_is_long), m_strRaw(other.m_strRaw) {
 }
 
 LiteralValue::~LiteralValue() {
@@ -35,6 +35,7 @@ LiteralValue &LiteralValue::operator=(const LiteralValue &rhs) {
         m_strval = rhs.m_strval;
         m_is_unsigned = rhs.m_is_unsigned;
         m_is_long = rhs.m_is_long;
+        m_strRaw = rhs.m_strRaw;
     }
     return *this;
 }
@@ -188,7 +189,7 @@ LiteralValue LiteralValue::from_str_literal(const std::string &lexeme, const Loc
         ++pos;
     }
 
-    return LiteralValue(value);
+    return LiteralValue(value, s);;
 }
 
 std::string LiteralValue::strip_quotes(const std::string &lexeme, char quote) {
@@ -199,4 +200,12 @@ std::string LiteralValue::strip_quotes(const std::string &lexeme, char quote) {
     std::string s(lexeme.substr(1));
     s.pop_back();
     return s;
+}
+
+void LiteralValue::setStrRaw(const std::string &strRaw) {
+    m_strRaw = strRaw;
+}
+
+std::string LiteralValue::getStrRaw() {
+    return m_strRaw;
 }

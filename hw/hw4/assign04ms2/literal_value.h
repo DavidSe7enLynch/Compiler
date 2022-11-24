@@ -18,6 +18,7 @@ private:
     LiteralValueKind m_kind;
     int64_t m_intval;
     std::string m_strval; // this is also used for character literals
+    std::string m_strRaw;
 
     // integer literals can be specified as being unsigned and/or long
     bool m_is_unsigned;
@@ -30,7 +31,7 @@ public:
 
     LiteralValue(char c);
 
-    LiteralValue(const std::string &s);
+    LiteralValue(const std::string &s, const std::string &sRaw);
 
     LiteralValue(const LiteralValue &other);
 
@@ -56,6 +57,11 @@ public:
     static LiteralValue from_int_literal(const std::string &lexeme, const Location &loc);
 
     static LiteralValue from_str_literal(const std::string &lexeme, const Location &loc);
+
+    // helper
+    void setStrRaw(const std::string &strRaw);
+
+    std::string getStrRaw();
 
 private:
     static std::string strip_quotes(const std::string &lexeme, char quote);

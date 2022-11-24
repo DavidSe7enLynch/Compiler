@@ -155,11 +155,19 @@ const Operand &NodeBase::getOperand() const {
 
 void NodeBase::setLiteralValue(const LiteralValue &other) {
     m_literalValue = other;
+//    std::printf("node set literal, strRaw = %s\n", m_literalValue.getStrRaw().c_str());
     setIsLiteral(true);
     LiteralValueKind literalKind = m_literalValue.get_kind();
     if (literalKind == LiteralValueKind::INTEGER) {
-        std::shared_ptr <Type> intType(new BasicType(BasicTypeKind::INT, true));
-        typeNode = intType;
+        // int, long
+        if (m_literalValue.is_long()) {
+//            std::printf("setlitval, is long\n");
+            std::shared_ptr <Type> longType(new BasicType(BasicTypeKind::LONG, true));
+            typeNode = longType;
+        } else {
+            std::shared_ptr <Type> intType(new BasicType(BasicTypeKind::INT, true));
+            typeNode = intType;
+        }
     } else if (literalKind == LiteralValueKind::CHARACTER) {
         std::shared_ptr <Type> charType(new BasicType(BasicTypeKind::CHAR, true));
         typeNode = charType;
@@ -174,3 +182,10 @@ LiteralValue &NodeBase::getLiteralValue() {
     return m_literalValue;
 }
 
+void NodeBase::setVarName(std::string varname) {
+    varName = varname;
+}
+
+std::string NodeBase::getVarName() {
+    return varName;
+}

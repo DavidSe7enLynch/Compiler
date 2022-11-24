@@ -146,7 +146,7 @@ public:
 class Member {
 private:
     const std::string m_name;
-    std::shared_ptr <Type> m_type;
+    mutable std::shared_ptr <Type> m_type;
     // Note: you could add additional information here, such as an
     // offset value (for struct fields), etc.
     mutable unsigned m_offset;
@@ -159,6 +159,8 @@ public:
     const std::string &get_name() const;
 
     std::shared_ptr <Type> get_type() const;
+
+    void setType(std::shared_ptr<Type> type) const;
 
     void setOffset(unsigned offset) const;
 

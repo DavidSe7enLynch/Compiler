@@ -30,6 +30,12 @@ HighLevelCodegen::~HighLevelCodegen() {
 }
 
 void HighLevelCodegen::visit_function_definition(Node *n) {
+    // 4 kids
+    // 1: return type
+    // 2: name: TOK_IDENT
+    // 3: parameter list
+    // 4: statement list
+
     // generate the name of the label that return instructions should target
     std::string fn_name = n->get_kid(1)->get_str();
     m_return_label_name = ".L" + fn_name + "_return";
@@ -37,15 +43,35 @@ void HighLevelCodegen::visit_function_definition(Node *n) {
     // need to calculate total local storage of the function
     unsigned total_local_storage = n->getLocalTotalStorage();
     // need to get nextVreg
-    m_nextOrigVreg = n->get_kid(3)->getNextVreg();
-    m_nextCurVreg = m_nextOrigVreg;
-//    std::printf("m_nextOrigVreg = %d\n", m_nextOrigVreg);
+    m_nextCurVreg = n->get_kid(3)->getNextVreg();
 
+    // enter
     m_hl_iseq->append(new Instruction(HINS_enter, Operand(Operand::IMM_IVAL, total_local_storage)));
+
+    // store parameters in vregs
+    Node *paramList = n->get_kid(2);
+    for (auto i = 0; i < paramList->get_num_kids(); i++) {
+        Node *param = paramList->get_kid(i);
+        Symbol *symbol = param->getSymbol();
+
+        HighLevelOpcode movOpcode = get_opcode(HINS_mov_b, symbol->get_type());
+
+        Operand newOperand = nextTempOperand();
+        Operand origOperand = Operand(Operand::VREG, symbol->getStorage().getVreg());
+
+        m_hl_iseq->append(new Instruction(movOpcode, newOperand, origOperand));
+
+        symbol->setStorage(StorageKind::VREGISTER, newOperand.get_base_reg());
+//        std::printf("dealing with param No. %d, store in vreg %d\n", i, symbol->getStorage().getVreg());
+    }
+
+    // now we have store all local variables, origVreg starts here
+    m_nextOrigVreg = m_nextCurVreg;
 
     // visit body
     visit(n->get_kid(3));
 
+    // leave
     m_hl_iseq->define_label(m_return_label_name);
     m_hl_iseq->append(new Instruction(HINS_leave, Operand(Operand::IMM_IVAL, total_local_storage)));
     m_hl_iseq->append(new Instruction(HINS_ret));
@@ -304,6 +330,7 @@ void HighLevelCodegen::visit_array_element_ref_expression(Node *n) {
     visit(arr);
     visit(idx);
 
+    // if it is a struct field
     // if 2-D array
     // then kid0 type must be array
     // set operand of kid0 back to vreg (from memref)
@@ -352,7 +379,7 @@ void HighLevelCodegen::visit_variable_ref(Node *n) {
             break;
         case StorageKind::MEMORY: {
             // store memory offset into a vreg
-//            std::printf("var ref memory: %s\n", symbol->get_name().c_str());
+//            std::printf("var ref memory: %s, offset: %d\n", symbol->get_name().c_str(), storage.getMemOffset());
             Operand tempOperand = nextTempOperand();
             m_hl_iseq->append(new Instruction(HINS_localaddr,
                                               tempOperand,
@@ -378,10 +405,13 @@ void HighLevelCodegen::visit_literal_value(Node *n) {
     LiteralValue val = n->getLiteralValue();
     Operand dest = nextTempOperand();
     HighLevelOpcode mov_opcode = get_opcode(HINS_mov_b, n->getType());
-    if (val.get_kind() == LiteralValueKind::INTEGER)
+//    std::printf("highcodegen, litval, type: %s\n", n->getType()->as_str().c_str());
+    if (val.get_kind() == LiteralValueKind::INTEGER) {
         m_hl_iseq->append(new Instruction(mov_opcode, dest, Operand(Operand::IMM_IVAL, val.get_int_value())));
-    else if (val.get_kind() == LiteralValueKind::STRING) {
+    } else if (val.get_kind() == LiteralValueKind::STRING) {
         m_hl_iseq->append(new Instruction(mov_opcode, dest, n->getOperand()));
+    } else if (val.get_kind() == LiteralValueKind::CHARACTER) {
+        m_hl_iseq->append(new Instruction(mov_opcode, dest, Operand(Operand::IMM_IVAL, val.get_char_value())));
     }
     n->setOperand(dest);
 }
@@ -389,6 +419,7 @@ void HighLevelCodegen::visit_literal_value(Node *n) {
 void HighLevelCodegen::visit_unary_expression(Node *n) {
     // ampersand &
     // asterisk *
+    // minus -
     Node *op = n->get_kid(0);
     Node *val = n->get_kid(1);
     visit(val);
@@ -398,11 +429,25 @@ void HighLevelCodegen::visit_unary_expression(Node *n) {
             n->setOperand(val->getOperand().memref_to());
             break;
         case TOK_ASTERISK: {
-            // can have multi-layer pointer
-            HighLevelOpcode movOpcode = get_opcode(HINS_mov_b, val->getType()->get_base_type());
+            if (!val->getOperand().is_memref()) {
+                // 1-layer ptr
+                n->setOperand(val->getOperand().to_memref());
+            } else {
+                // multi-layer ptr
+//                std::printf("**pp, base type = %s, type = %s\n", val->getType()->get_base_type()->as_str().c_str(), val->getType()->as_str().c_str());
+                // do not need base type, because it is multi-layer ptr, type has already been reduced
+                HighLevelOpcode movOpcode = get_opcode(HINS_mov_b, val->getType());
+                Operand tempOperand = nextTempOperand();
+                m_hl_iseq->append(new Instruction(movOpcode, tempOperand, val->getOperand()));
+                n->setOperand(tempOperand.to_memref());
+            }
+            break;
+        }
+        case TOK_MINUS: {
+            // neg
+            HighLevelOpcode negOpcode = get_opcode(HINS_neg_b, val->getType());
             Operand tempOperand = nextTempOperand();
-            m_hl_iseq->append(new Instruction(movOpcode, tempOperand, val->getOperand().to_memref()));
-//            m_hl_iseq->append(new Instruction(movOpcode, tempOperand, setToMemref(val->getOperand(), n)));
+            m_hl_iseq->append(new Instruction(negOpcode, tempOperand, val->getOperand()));
             n->setOperand(tempOperand);
             break;
         }
@@ -429,12 +474,17 @@ void HighLevelCodegen::visit_field_ref_expression(Node *n) {
     std::string fieldName = n->get_kid(1)->get_str();
     const Member *member = structType->find_member(fieldName);
     unsigned fieldOffset = member->getOffset();
-//    std::printf("get offset, %d\n", fieldOffset);
+//    std::printf("member: %s, get offset, %d\n", fieldName.c_str(), fieldOffset);
     Operand tempOperand1 = nextTempOperand();
     Operand tempOperand2 = nextTempOperand();
     m_hl_iseq->append(new Instruction(HINS_mov_q, tempOperand1, Operand(Operand::IMM_IVAL, fieldOffset)));
     m_hl_iseq->append(new Instruction(HINS_add_q, tempOperand2, structNode->getOperand().memref_to(), tempOperand1));
-    n->setOperand(tempOperand2.to_memref());
+    if (!member->get_type()->is_array())
+        n->setOperand(tempOperand2.to_memref());
+    else {
+//        std::printf("member is array");
+        n->setOperand(tempOperand2);
+    }
 //    n->setOperand(setToMemref(tempOperand2, n));
 }
 
@@ -463,7 +513,10 @@ void HighLevelCodegen::visit_indirect_field_ref_expression(Node *n) {
     m_hl_iseq->append(new Instruction(HINS_mov_q, tempOperand1, Operand(Operand::IMM_IVAL, fieldOffset)));
     // different from direct field ref: don't need memref_to
     m_hl_iseq->append(new Instruction(HINS_add_q, tempOperand2, structNode->getOperand(), tempOperand1));
-    n->setOperand(tempOperand2.to_memref());
+    if (!member->get_type()->is_array())
+        n->setOperand(tempOperand2.to_memref());
+    else
+        n->setOperand(tempOperand2);
 //    n->setOperand(setToMemref(tempOperand2, n));
 }
 

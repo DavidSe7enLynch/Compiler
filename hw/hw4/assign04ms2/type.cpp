@@ -125,6 +125,10 @@ std::shared_ptr <Type> Member::get_type() const {
     return m_type;
 }
 
+void Member::setType(std::shared_ptr <Type> type) const {
+    m_type = type;
+}
+
 void Member::setOffset(unsigned int offset) const {
 //    std::printf("set offset, %d, name: %s\n", offset, m_name.c_str());
     m_offset = offset;

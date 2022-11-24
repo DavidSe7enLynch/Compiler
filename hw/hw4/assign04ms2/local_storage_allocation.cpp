@@ -59,10 +59,14 @@ void LocalStorageAllocation::visit_array_declarator(Node *n) {
     // 0: named declarator: arr name
     // 1: TOK_INT_LIT: arr size
 
-    // store the array in memory
-    Symbol *symbol = n->getSymbol();
-    unsigned offset = m_storage_calc.add_field(n->getType());
-    symbol->setStorage(StorageKind::MEMORY, offset);
+    // if is a struct field, do not setStorage
+    if (n->getIsMember() && n->getMemberName().rfind("struct ", 0) == 0) {}
+    else {
+        // store the array in memory
+        Symbol *symbol = n->getSymbol();
+        unsigned offset = m_storage_calc.add_field(n->getType());
+        symbol->setStorage(StorageKind::MEMORY, offset);
+    }
 }
 
 void LocalStorageAllocation::visit_function_definition(Node *n) {
@@ -117,7 +121,10 @@ void LocalStorageAllocation::visit_literal_value(Node *n) {
     if (val.get_kind() == LiteralValueKind::STRING) {
         int size = m_strVector.size();
         std::string strName = "_str" + std::to_string(size);
-        std::string strVal = val.get_str_value();
+        // need to get raw string
+//        std::string strVal = val.get_str_value();
+        std::string strVal = val.getStrRaw();
+//        std::printf("visit literal: strRaw = %s\n", val.getStrRaw().c_str());
         struct strStorage strStor{strName, strVal};
         m_strVector.push_back(strStor);
 //        std::printf("deal with string\n")

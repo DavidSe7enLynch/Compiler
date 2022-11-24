@@ -12,3 +12,11 @@ Several tricky parts:
 
 5. string values need to be specially dealt with. I created a string storage struct type, and added a vector containing these structs inside LocalStorageAllocation class.
 Whenever I reached a node with string literal value, I added a struct to the vector, and created appropriate operand stored in that node.
+
+6. multi-D array needs special care
+
+7. In my implementation, I need to check both type and symbol of an array variable, but if it inside a struct, then we cannot find that symbol anymore.
+We can only find the member. Therefore, to simplify other codes, I created a unique_ptr of symbol, with similar content in that member, and use .get()
+to pass it to the node.
+
+8. when 2 memref are in one instruction, only %r10 anf %r11 may not be enough. After discussing with Prof, I used %rax.

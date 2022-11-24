@@ -48,13 +48,30 @@ void SemanticAnalysis::visit_variable_declaration(Node *n) {
     passMember(n->get_kid(2));
 
     // set type for variables
-//    for (auto i = 0; i < n->get_kid(2)->get_num_kids(); i++) {
-//        Node *kid = n->get_kid(2)->get_kid(i);
-//        kid->setType(type);
-//        visit(kid);
-//    }
     passDeclareTypeAllNodes(n->get_kid(2), type);
     visit(n->get_kid(2));
+
+
+    // deal with array declaration: add symbol, add member, etc.
+    Node *decList = n->get_kid(2);
+    for (auto i = 0; i < decList->get_num_kids(); i++) {
+        Node *kid = decList->get_kid(i);
+        if (kid->get_tag() == AST_ARRAY_DECLARATOR) {
+            // add entry to symbol table
+            std::string name = kid->getVarName();
+            // make sure name is not used
+            if (m_cur_symtab->has_symbol_local(name))
+                SemanticError::raise(n->get_loc(), "symbol name already used\n");
+
+            m_cur_symtab->define(SymbolKind::VARIABLE, name, kid->getType());
+
+            // add symbol to current node
+            Symbol *symbol = m_cur_symtab->lookup_local(name);
+            kid->setSymbol(symbol);
+
+            callAddMember(kid);
+        }
+    }
 }
 
 void SemanticAnalysis::visit_basic_type(Node *n) {
@@ -504,7 +521,14 @@ void SemanticAnalysis::visit_function_call_expression(Node *n) {
         Node *param = paramList->get_kid(i);
         visit(param);
 //        std::printf("in params, param type: %s\n", param->getType()->as_str().c_str());
-        analyzeAssignRef(symbol->get_type()->get_member(i).get_type(), param->getType(), n);
+        std::shared_ptr<Type> ltype = symbol->get_type()->get_member(i).get_type();
+        std::shared_ptr<Type> rtype = param->getType();
+        analyzeAssignRef(ltype, rtype, n);
+        // check implicit conversion
+        // both integral, right convert to left
+        if ((ltype->is_integral() && rtype->is_integral()) && !rtype->is_same(ltype.get())) {
+            paramList->set_kid(i, implicit_conversion(param, ltype));
+        }
     }
 //    std::printf("function call, return type: %s\n", symbol->get_type()->get_base_type()->as_str().c_str());
     n->setType(symbol->get_type()->get_base_type());
@@ -528,12 +552,16 @@ void SemanticAnalysis::visit_field_ref_expression(Node *n) {
         Member member = structType->get_member(i);
         if (member.get_name() == fieldName) {
             std::shared_ptr<Type> type = member.get_type();
-//            // handle array as pointer
-//            if (type->is_array()) {
-//                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
-//                n->setType(ptrType);
-//            } else
-            n->setType(type);
+            // handle array as pointer
+            // give array a symbol
+            if (type->is_array()) {
+                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
+                n->setType(ptrType);
+                std::unique_ptr<Symbol> symbol(new Symbol(SymbolKind::VARIABLE, member.get_name(), member.get_type(),
+                                                          nullptr, true));
+                n->setSymbol(symbol.get());
+            } else
+                n->setType(type);
             return;
         }
     }
@@ -559,12 +587,16 @@ void SemanticAnalysis::visit_indirect_field_ref_expression(Node *n) {
         Member member = structType->get_member(i);
         if (member.get_name() == fieldName) {
             std::shared_ptr<Type> type = member.get_type();
-//            // handle array as pointer
-//            if (type->is_array()) {
-//                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
-//                n->setType(ptrType);
-//            } else
-            n->setType(type);
+            // handle array as pointer
+            // give array a symbol
+            if (type->is_array()) {
+                std::shared_ptr<Type> ptrType(new PointerType(type->get_base_type()));
+                n->setType(ptrType);
+                std::unique_ptr<Symbol> symbol(new Symbol(SymbolKind::VARIABLE, member.get_name(), member.get_type(),
+                                                          nullptr, true));
+                n->setSymbol(symbol.get());
+            } else
+                n->setType(type);
 //            std::printf("indirect field: type: %s\n", n->getType()->as_str().c_str());
             return;
         }
@@ -652,6 +684,7 @@ void SemanticAnalysis::visit_literal_value(Node *n) {
         case TOK_STR_LIT: {
             //            n->setLiteralKind(LiteralValueKind::STRING);
             LiteralValue strValue = LiteralValue::from_str_literal(kid->get_str(), kid->get_loc());
+//            std::printf("seman visit literal, strRaw = %s\n", strValue.getStrRaw().c_str());
             n->setLiteralValue(strValue);
             break;
         }
@@ -659,6 +692,7 @@ void SemanticAnalysis::visit_literal_value(Node *n) {
             //            n->setLiteralKind(LiteralValueKind::INTEGER);
             LiteralValue intValue = LiteralValue::from_int_literal(kid->get_str(), kid->get_loc());
             n->setLiteralValue(intValue);
+//            std::printf("in seman literal int, isLong = %d\n", intValue.is_long());
             break;
         }
         case TOK_CHAR_LIT: {
@@ -676,36 +710,20 @@ void SemanticAnalysis::visit_return_expression_statement(Node *n) {
     Symbol *funcSymbol = n->getFuncSymbol();
     std::shared_ptr<Type> returnTypeFunc = funcSymbol->get_type()->get_base_type();
     visit(n->get_kid(0));
-    // 2 cases:
-    // return a literal value
-    // return a variable ref
-//    if (n->get_kid(0)->get_tag() == AST_LITERAL_VALUE) {
-//        // return a literal value
-//        visit_literal_value(n->get_kid(0));
-//        LiteralValueKind literalKind = n->get_kid(0)->getLiteralKind();
-//        if (literalKind == LiteralValueKind::STRING) {
-//            // char*
-//            if (!(returnTypeFunc->is_pointer() &&
-//                  returnTypeFunc->get_base_type()->get_basic_type_kind() == BasicTypeKind::CHAR))
-//                SemanticError::raise(n->get_loc(), "bad return string literal\n");
-//        } else if (literalKind == LiteralValueKind::INTEGER) {
-//            // int, short, long
-//            if (!(returnTypeFunc->is_basic() && (returnTypeFunc->get_basic_type_kind() == BasicTypeKind::INT ||
-//                                                 returnTypeFunc->get_basic_type_kind() == BasicTypeKind::LONG ||
-//                                                 returnTypeFunc->get_basic_type_kind() == BasicTypeKind::SHORT)))
-//                SemanticError::raise(n->get_loc(), "bad return integer literal\n");
-//        } else if (literalKind == LiteralValueKind::CHARACTER) {
-//            // char
-//            if (!(returnTypeFunc->is_basic() && returnTypeFunc->get_basic_type_kind() == BasicTypeKind::CHAR))
-//                SemanticError::raise(n->get_loc(), "bad return char literal\n");
-//        }
-//    } else {
+
     // return a variable ref
     std::shared_ptr<Type> returnTypeReal = n->get_kid(0)->getType();
 //    std::printf("in return expression, func type = %s, return type = %s", returnTypeFunc->as_str().c_str(), returnTypeReal->as_str().c_str());
-    if (!(returnTypeFunc->is_same(returnTypeReal.get())))
+    if (returnTypeFunc->is_integral() && returnTypeReal->is_integral()) {
+        // check implicit conversion
+        // both integral, right convert to left
+        if (!returnTypeReal->is_same(returnTypeFunc.get())) {
+            n->set_kid(0, implicit_conversion(n->get_kid(0), returnTypeFunc));
+        }
+    }
+    else if (!(returnTypeFunc->is_same(returnTypeReal.get()))) {
         SemanticError::raise(n->get_loc(), "wrong return type\n");
-//    }
+    }
 }
 
 // TODO: implement helper functions
@@ -841,19 +859,62 @@ void SemanticAnalysis::visit_named_declarator(Node *n) {
 }
 
 void SemanticAnalysis::visit_array_declarator(Node *n) {
-    // first go to named_declarator, and add a symbol
-    // then go back and set correct type to the symbol
-    // (to deal with multi-D arrays)
-    passMember(n);
-    visit(n->get_kid(0));
+    // 2 kids
+    // 0:
+    // 1: TOK_INT_LIT
 
-    // modify type to array
+    // a new way
+    // deal with var ref myself
+
     unsigned size = std::stoul(n->get_kid(1)->get_str());
+    Node *kid = n->get_kid(0);
+
+    if (kid->get_tag() == AST_NAMED_DECLARATOR) {
+        // 1-D now
+        std::string name = kid->get_kid(0)->get_str();
+        n->setVarName(name);
+    } else if (kid->get_tag() == AST_ARRAY_DECLARATOR) {
+        // multi-D
+        visit(kid);
+        n->setVarName(kid->getVarName());
+    }
     std::shared_ptr<ArrayType> arrayType(new ArrayType(n->get_kid(0)->getType(), size));
     n->setType(arrayType);
-    n->get_kid(0)->getSymbol()->setType(arrayType);
-    n->setSymbol(n->get_kid(0)->getSymbol());
-//    std::printf("in array declarator, type = %s\n", n->getType()->as_str().c_str());
+
+    // let upper nodes to create symbol, add member, etc.
+
+
+
+//    // first go to named_declarator, and add a symbol
+//    // then go back and set correct type to the symbol
+//    // (to deal with multi-D arrays)
+//    passMember(n);
+//    visit(n->get_kid(0));
+//
+//    // modify type to array
+//    unsigned size = std::stoul(n->get_kid(1)->get_str());
+//    std::shared_ptr<ArrayType> arrayType(new ArrayType(n->get_kid(0)->getType(), size));
+//    n->setType(arrayType);
+//    n->get_kid(0)->getSymbol()->setType(arrayType);
+//    n->setSymbol(n->get_kid(0)->getSymbol());
+//    std::printf("in array declarator, type = %s, symbolType = %s\n", n->getType()->as_str().c_str(), n->get_kid(0)->getSymbol()->get_type()->as_str().c_str());
+//    // if in struct, then the symbol type of member should also be changed
+//    if (n->getIsMember()) {
+//        Symbol *symbolBelong = m_cur_symtab->lookup_recursive(n->getMemberName());
+//
+//        if (!symbolBelong)
+//            RuntimeError::raise("symbolBelong doesn't exist\n");
+//        std::printf("in array declare, is member, struct: %s\n", symbolBelong->get_name().c_str());
+//
+//        for (auto i = 0; i < symbolBelong->get_type()->get_num_members(); i++) {
+//            Member member = symbolBelong->get_type()->get_member(i);
+//            std::printf("array name: %s, member %d in struct: %s\n", n->getSymbol()->get_name().c_str(), i, member.get_name().c_str());
+//            if (member.get_name() == n->getSymbol()->get_name()) {
+//                member.setType(n->getType());
+//                std::printf("member type: %s, struct type: %s\n", member.get_type()->as_str().c_str(), symbolBelong->get_type()->as_str().c_str());
+//            }
+//        }
+//    }
 }
 
 void SemanticAnalysis::visit_field_definition_list(Node *n) {
@@ -890,7 +951,8 @@ void SemanticAnalysis::passMember(Node *n) {
 void SemanticAnalysis::callAddMember(Node *n) {
     if (n->getIsMember()) {
         // get name from kid 0 literal
-        Member member = Member(n->get_kid(0)->get_str(), n->getType());
+        std::string name = (n->get_tag() == AST_NAMED_DECLARATOR) ? n->get_kid(0)->get_str() : n->getVarName();
+        Member member = Member(name, n->getType());
         Symbol *symbolBelong = m_cur_symtab->lookup_recursive(n->getMemberName());
         if (!symbolBelong)
             RuntimeError::raise("symbolBelong doesn't exist\n");
