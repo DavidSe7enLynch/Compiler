@@ -27,6 +27,8 @@ public:
     unsigned get_num_operands() const;
 
     const Operand &get_operand(unsigned index) const;
+
+    Instruction *duplicate() const { return new Instruction(*this); }
 };
 
 #endif // INSTRUCTION_H

@@ -1,9 +1,13 @@
 #include <string>
 #include <memory>
+#include <map>
 #include "highlevel.h"
 #include "instruction_seq.h"
 #include "ast_visitor.h"
 #include "local_storage_allocation.h"
+#include <vector>
+#include <algorithm>
+
 
 // A HighLevelCodegen visitor generates high-level IR code for
 // a single function. Code generation is initiated by visiting
@@ -17,13 +21,22 @@ private:
     // back to origin after each expression
     int m_nextCurVreg;
 
+    // ratio of num of occur of var in for/while loop
+    const int m_occurRatio = 10;
+    int m_curRatio = 1;
+
+    // map of num of occur of var: <vreg num, num of occur>
+    std::map<int, int> m_occurVars;
+
+
+
 public:
     // the next_label_num controls where the next_label() member function
     HighLevelCodegen(int next_label_num);
 
     virtual ~HighLevelCodegen();
 
-    std::shared_ptr <InstructionSequence> get_hl_iseq() { return m_hl_iseq; }
+    std::shared_ptr <InstructionSequence> get_hl_iseq();
 
     int get_next_label_num() const { return m_next_label_num; }
 
@@ -69,4 +82,9 @@ private:
     Operand nextTempOperand();
 
     Operand setToMemref(Operand operand, Node *n);
+
+    // helper functions for occurVars
+    void addVarOccur(int vreg, int num);
+
+    int getVarOccur(int vreg);
 };

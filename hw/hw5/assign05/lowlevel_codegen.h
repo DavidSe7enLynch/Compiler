@@ -2,6 +2,9 @@
 #define LOWLEVEL_CODEGEN_H
 
 #include <memory>
+#include <map>
+#include <algorithm>
+#include "lowlevel.h"
 #include "instruction_seq.h"
 
 // A LowLevelCodeGen object transforms an InstructionSequence containing
@@ -16,6 +19,11 @@ private:
     // 0: 10, 1: 11, 2: rax
 //    int numTempReg;
     bool m_ifUseRAX;
+
+    // save callee-saved registers
+    int m_numPush;
+    MachineReg m_callee[5] = {MREG_R12, MREG_R13, MREG_R14, MREG_R15, MREG_RBX};
+    std::map<int, MachineReg> m_mregMap;
 
     std::string m_returnLabel;
 
@@ -33,7 +41,7 @@ private:
 
     Operand get_ll_operand(Operand hl_opcode, int size, const std::shared_ptr <InstructionSequence> &ll_iseq);
 
-    Operand nextTempOperand();
+//    Operand nextTempOperand();
 };
 
 #endif // LOWLEVEL_CODEGEN_H

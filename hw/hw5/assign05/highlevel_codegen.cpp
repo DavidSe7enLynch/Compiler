@@ -79,7 +79,7 @@ void HighLevelCodegen::visit_function_definition(Node *n) {
 
 void HighLevelCodegen::visit_expression_statement(Node *n) {
     visit_children(n);
-    m_nextCurVreg = m_nextOrigVreg;
+//    m_nextCurVreg = m_nextOrigVreg;
 }
 
 void HighLevelCodegen::visit_return_statement(Node *n) {
@@ -118,11 +118,15 @@ void HighLevelCodegen::visit_while_statement(Node *n) {
 
     // label 0: statements
     m_hl_iseq->define_label(stmtLabel);
+    // modify occur ratio
+    m_curRatio *= m_occurRatio;
     visit(n->get_kid(1));
 
     // label 1: while expression
     m_hl_iseq->define_label(exprLabel);
     visit(n->get_kid(0));
+    // modify occur ratio back
+    m_curRatio /= m_occurRatio;
 
     // jmp to label 0
     m_hl_iseq->append(new Instruction(HINS_cjmp_t, n->get_kid(0)->getOperand(), Operand(Operand::LABEL, stmtLabel)));
@@ -136,10 +140,14 @@ void HighLevelCodegen::visit_do_while_statement(Node *n) {
 
     // label 0: statements
     m_hl_iseq->define_label(stmtLabel);
+    // modify occur ratio
+    m_curRatio *= m_occurRatio;
     visit(n->get_kid(0));
 
     // while expression
     visit(n->get_kid(1));
+    // modify occur ratio back
+    m_curRatio /= m_occurRatio;
 
     // jmp to label 0
     m_hl_iseq->append(new Instruction(HINS_cjmp_t, n->get_kid(1)->getOperand(), Operand(Operand::LABEL, stmtLabel)));
@@ -167,6 +175,8 @@ void HighLevelCodegen::visit_for_statement(Node *n) {
 
     // label 0: statements (kid 3)
     m_hl_iseq->define_label(stmtLabel);
+    // modify occur ratio
+    m_curRatio *= m_occurRatio;
     visit(n->get_kid(3));
 
     // for expression (kid 2)
@@ -175,6 +185,8 @@ void HighLevelCodegen::visit_for_statement(Node *n) {
     // label 1: for expression (kid 1)
     m_hl_iseq->define_label(exprLabel);
     visit(n->get_kid(1));
+    // modify occur ratio back
+    m_curRatio /= m_occurRatio;
 
     // jmp to label 0
     m_hl_iseq->append(new Instruction(HINS_cjmp_t, n->get_kid(1)->getOperand(), Operand(Operand::LABEL, stmtLabel)));
@@ -375,6 +387,8 @@ void HighLevelCodegen::visit_variable_ref(Node *n) {
             n->setOperand(Operand()); // ?
             break;
         case StorageKind::VREGISTER:
+            // set occur to occurVars map
+            addVarOccur(storage.getVreg(), m_curRatio);
             n->setOperand(Operand(Operand::VREG, storage.getVreg()));
             break;
         case StorageKind::MEMORY: {
@@ -600,3 +614,50 @@ Operand HighLevelCodegen::setToMemref(Operand operand, Node *n) {
     m_hl_iseq->append(new Instruction(movOpcode, tempOperand, operand.to_memref()));
     return tempOperand;
 }
+
+void HighLevelCodegen::addVarOccur(int vreg, int num) {
+    std::map<int, int>::iterator iter;
+    iter = m_occurVars.find(vreg);
+    if (iter == m_occurVars.end()) {
+        // new vreg
+        m_occurVars.insert(std::pair<int, int>(vreg, num));
+    } else {
+        // add to existed symbol
+        iter->second += num;
+    }
+}
+
+int HighLevelCodegen::getVarOccur(int vreg) {
+    std::map<int, int>::iterator iter;
+    iter = m_occurVars.find(vreg);
+    if (iter == m_occurVars.end())
+        RuntimeError::raise("getVarOccur, vreg doesn't exist\n");
+    return iter->second;
+}
+
+
+namespace {
+    bool sortByValueLarger (std::pair<int, int> a, std::pair<int, int> b) {
+        return (a.second > b.second);
+    }
+
+    void printOccurVarVec(std::vector<std::pair<int, int>> vec) {
+        for (int i = 0; i < vec.size(); i++) {
+            std::printf("%d: %d\n", vec[i].first, vec[i].second);
+        }
+    }
+}
+
+
+std::shared_ptr <InstructionSequence> HighLevelCodegen::get_hl_iseq() {
+    // sort m_occurVars, convert to vector, copy to hl_iseq
+    std::map<int, int>::iterator iter;
+    for (iter = m_occurVars.begin(); iter != m_occurVars.end(); iter++) {
+        m_hl_iseq->m_occurVarsVec.push_back(std::pair<int, int>(iter->first, iter->second));
+    }
+//    printOccurVarVec(m_hl_iseq->m_occurVarsVec);
+    std::sort(m_hl_iseq->m_occurVarsVec.begin(), m_hl_iseq->m_occurVarsVec.end(), sortByValueLarger);
+//    printOccurVarVec(m_hl_iseq->m_occurVarsVec);
+    return m_hl_iseq;
+}
+

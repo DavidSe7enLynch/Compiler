@@ -1,11 +1,9 @@
 #include <cassert>
-#include <map>
 #include "node.h"
 #include "instruction.h"
 #include "operand.h"
 #include "local_storage_allocation.h"
 #include "highlevel.h"
-#include "lowlevel.h"
 #include "exceptions.h"
 #include "lowlevel_codegen.h"
 
@@ -133,14 +131,26 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
     m_total_memory_storage = m_localStorage + (numVreg - 9) * 8;
 //    std::printf("m_total_memory_storage: %d\n", m_total_memory_storage);
 
-//    m_total_memory_storage = 120; // FIXME: determine how much memory storage on the stack is needed
-
     // The function prologue will push %rbp, which should guarantee that the
     // stack pointer (%rsp) will contain an address that is a multiple of 16.
     // If the total memory storage required is not a multiple of 16, add to
     // it so that it is.
     if ((m_total_memory_storage) % 16 != 0)
         m_total_memory_storage += (16 - (m_total_memory_storage % 16));
+
+
+    // push callee-saved regs to stack
+    // depend on size of occurVars, max 5
+    // order: r12-r15, rbx
+    // pop back before ret
+    // also set the vreg-mreg map for global allocation
+    m_numPush = std::min(static_cast<int>(hl_iseq->m_occurVarsVec.size()), 5);
+    for (int i = 0; i < m_numPush; i++) {
+        Operand operand = Operand(Operand::MREG64, m_callee[i]);
+        ll_iseq->append(new Instruction(MINS_PUSHQ, operand));
+        m_mregMap.insert(std::pair<int, MachineReg>(hl_iseq->m_occurVarsVec[i].first, m_callee[i]));
+    }
+
 
     // Iterate through high level instructions
     for (auto i = hl_iseq->cbegin(); i != hl_iseq->cend(); ++i) {
@@ -259,7 +269,13 @@ void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shar
     }
 
     if (hl_opcode == HINS_ret) {
-//        std::printf("in ret\n");
+        // pop callee-saved regs from stack
+        // reverse order
+        for (int i = 0; i < m_numPush; i++) {
+            Operand operand = Operand(Operand::MREG64, m_callee[m_numPush - i - 1]);
+            ll_iseq->append(new Instruction(MINS_POPQ, operand));
+        }
+
         ll_iseq->append(new Instruction(MINS_RET));
         return;
     }
@@ -565,6 +581,7 @@ void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shar
 
 Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
                                         const std::shared_ptr <InstructionSequence> &ll_iseq) {
+
     // IMM_IVAL
     if (hl_opcode.is_imm_ival()) {
         Operand operand(Operand::IMM_IVAL, hl_opcode.get_imm_ival());
@@ -573,12 +590,22 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
 
     // VREG
     if (hl_opcode.get_kind() == Operand::VREG) {
+        int numVreg = hl_opcode.get_base_reg();
+
+        // if in m_mregMap, use machine registers
+        std::map<int, MachineReg>::iterator iter;
+        iter = m_mregMap.find(numVreg);
+        if (iter != m_mregMap.end()) {
+            // in m_mregMap, use machine registers
+            Operand operand(Operand::MREG64, iter->second);
+            return operand;
+        }
+
         // map vreg to memory by numbers
         // rule:
         // vr0: %eax
         // starting from vr10
         // stack offset starting from bottom (negative with the largest abs value)
-        int numVreg = hl_opcode.get_base_reg();
 
         // return vr0
         if (numVreg == 0) {
@@ -666,6 +693,6 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
 
 }
 
-Operand LowLevelCodeGen::nextTempOperand() {
-
-}
+//Operand LowLevelCodeGen::nextTempOperand() {
+//
+//}
