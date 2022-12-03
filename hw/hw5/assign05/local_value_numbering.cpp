@@ -25,7 +25,7 @@ std::shared_ptr<ValueNumber> KeyMember::getValNum() const {
     return m_valNum;
 }
 
-const Operand& KeyMember::getOperand() const {
+const Operand &KeyMember::getOperand() const {
     assert(!m_isValNum);
     return m_operand;
 }
@@ -43,6 +43,24 @@ std::string KeyMember::toStr() {
     if (m_isValNum) return m_valNum->toStr();
     // operand
     return HighLevelFormatter().format_operand(m_operand);
+}
+
+bool KeyMember::isSame(KeyMember other) {
+    // is_valNum same
+    // content same
+    if (this->isValNum() != other.isValNum()) {
+        std::printf("keymember kind dif\n");
+        return false;
+    }
+    if (this->isValNum() && this->getValNum() != other.getValNum()) {
+        std::printf("keymember valnum dif\n");
+        return false;
+    }
+    if (!this->isValNum() && !this->getOperand().isSame(other.getOperand())) {
+        std::printf("keymember operand dif\n");
+        return false;
+    }
+    return true;
 }
 
 
@@ -116,6 +134,24 @@ std::string LVNKey::toStr() {
         return cpputil::format("%s: %s, %s", opcode.c_str(), m_members[0].toStr().c_str(), m_members[1].toStr().c_str());
 }
 
+bool LVNKey::isSame(std::shared_ptr <LVNKey> other) {
+    // opcode same
+    // numMembers same
+    // operand or valnum same
+    if (this->getOpcode() != other->getOpcode()) {
+        return false;
+    }
+    if (this->getNumMembers() != other->getNumMembers()) {
+        return false;
+    }
+    for (auto i = 0; i < this->getNumMembers(); i++) {
+        if (!this->getMember(i).isSame(other->getMember(i))) {
+            std::printf("%dth mem in key dif\n", i);
+            return false;
+        }
+    }
+    return true;
+}
 
 // ValueNumber
 

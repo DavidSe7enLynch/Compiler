@@ -43,6 +43,8 @@ public:
     const Operand &getOperand() const;
 
     std::string toStr();
+
+    bool isSame(KeyMember other);
 };
 
 
@@ -68,6 +70,8 @@ public:
     KeyMember getMember(unsigned index) const;
 
     std::string toStr();
+
+    bool isSame(std::shared_ptr<LVNKey> other);
 
 private:
     void sortMember();

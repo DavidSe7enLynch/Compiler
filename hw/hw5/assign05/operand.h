@@ -102,6 +102,8 @@ public:
   Operand memref_to() const;
 
   std::string get_label() const;
+
+  bool isSame(const Operand &other) const;
 };
 
 #endif // OPERAND_H

@@ -53,12 +53,16 @@ std::shared_ptr <InstructionSequence> HighlevelLocalOptimize::transform_basic_bl
         // check if lvnKey existed
         const Operand &opDst = (*i)->get_operand(0);
         std::map < std::shared_ptr < LVNKey > , std::shared_ptr < ValueNumber >>::iterator iter;
-        if ((iter = m_mapKeyVal.find(lvnKey)) != m_mapKeyVal.end()) {
-            // lvnKey existed
-            // label dst vreg with orig valNum
-            m_mapVregVal.insert(std::pair < int, std::shared_ptr < ValueNumber >> (opDst.get_base_reg(), iter->second));
-            std::printf("val existed: %s\n\n", iter->second->toStr().c_str());
-        } else {
+        for (iter = m_mapKeyVal.begin(); iter != m_mapKeyVal.end(); ++iter) {
+            if (iter->first->isSame(lvnKey)) {
+                // lvnKey existed
+                // label dst vreg with orig valNum
+                m_mapVregVal.insert(std::pair < int, std::shared_ptr < ValueNumber >> (opDst.get_base_reg(), iter->second));
+                std::printf("val existed: %s\n\n", iter->second->toStr().c_str());
+            }
+        }
+
+        if (iter == m_mapKeyVal.end()) {
             // not exist
             // add new key and new value to 2 maps
             std::shared_ptr <ValueNumber> value(new ValueNumber(valNum++, opDst.get_base_reg(), lvnKey));
