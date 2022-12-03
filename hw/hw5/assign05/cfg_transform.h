@@ -25,7 +25,7 @@ public:
   //
   //    Instruction *orig_ins = /* an Instruction object */
   //    Instruction *dup_ins = orig_ins->duplicate();
-  virtual std::shared_ptr<InstructionSequence> transform_basic_block(const InstructionSequence *orig_bb) = 0;
+  virtual std::shared_ptr<InstructionSequence> transform_basic_block(const BasicBlock *orig_bb) = 0;
 };
 
 #endif // CFG_TRANSFORM_H

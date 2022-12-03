@@ -6,6 +6,8 @@
 #include "highlevel.h"
 #include "exceptions.h"
 #include "lowlevel_codegen.h"
+#include "cfg.h"
+#include "highlevel_local_optimize.h"
 
 namespace {
 
@@ -86,6 +88,34 @@ LowLevelCodeGen::~LowLevelCodeGen() {
 std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::shared_ptr <InstructionSequence> &hl_iseq) {
     // TODO: if optimizations are enabled, could do analysis/transformation of high-level code
 
+    Node *funcdef_ast = hl_iseq->get_funcdef_ast();
+
+    // cur_hl_iseq is the "current" version of the high-level IR,
+    // which could be a transformed version if we are doing optimizations
+    std::shared_ptr<InstructionSequence> cur_hl_iseq(hl_iseq);
+
+    if (m_optimize) {
+        // High-level optimizations
+
+        // Create a control-flow graph representation of the high-level code
+        HighLevelControlFlowGraphBuilder hl_cfg_builder(cur_hl_iseq);
+        std::shared_ptr<ControlFlowGraph> cfg = hl_cfg_builder.build();
+
+        // Do local optimizations
+        // LVN
+        HighlevelLocalOptimize hl_opts(cfg);
+        cfg = hl_opts.transform_cfg();
+
+        // TODO: uncomment these 2
+        // Convert the transformed high-level CFG back to an InstructionSequence
+//        cur_hl_iseq = cfg->create_instruction_sequence();
+
+        // The function definition AST might have information needed for
+        // low-level code generation
+//        cur_hl_iseq->set_funcdef_ast(funcdef_ast);
+    }
+
+    // TODO: change it to cur_hl_iseq
     std::shared_ptr <InstructionSequence> ll_iseq = translate_hl_to_ll(hl_iseq);
 
     // TODO: if optimizations are enabled, could do analysis/transformation of low-level code

@@ -13,6 +13,7 @@ SRCS = node.cpp node_base.cpp location.cpp treeprint.cpp \
 	lowlevel.cpp lowlevel_formatter.cpp lowlevel_codegen.cpp \
 	cfg.cpp cfg_transform.cpp print_cfg.cpp highlevel_defuse.cpp \
 	yyerror.cpp exceptions.cpp cpputil.cpp \
+	highlevel_local_optimize.cpp local_value_numbering.cpp\
 	$(GENERATED_SRCS)
 OBJS = $(SRCS:%.cpp=%.o)
 
