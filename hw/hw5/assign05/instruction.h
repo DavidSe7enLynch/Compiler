@@ -29,6 +29,8 @@ public:
     const Operand &get_operand(unsigned index) const;
 
     Instruction *duplicate() const { return new Instruction(*this); }
+
+    void setOperand(int idx, Operand operand);
 };
 
 #endif // INSTRUCTION_H

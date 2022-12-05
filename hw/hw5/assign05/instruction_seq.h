@@ -131,6 +131,10 @@ public:
 
     // Return the index of instruction labeled with the specified label.
     unsigned get_index_of_labeled_instruction(const std::string &label) const;
+
+    void setCalleeVec(std::vector<std::pair<int, int>> occurVarsVec);
+
+    std::vector<std::pair<int, int>> getCalleeVec();
 };
 
 #endif // INSTRUCTION_SEQ_H

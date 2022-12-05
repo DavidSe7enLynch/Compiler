@@ -4,6 +4,17 @@
 
 #include "local_value_numbering.h"
 
+namespace {
+    bool match_hl(int base, int hl_opcode) {
+        return hl_opcode >= base && hl_opcode < (base + 4);
+    }
+
+    bool matchHlConv(int hlOpcode) {
+        int base = HINS_sconv_bw;
+        return hlOpcode >= base && hlOpcode < (base + 12);
+    }
+}
+
 // KeyMember
 
 KeyMember::KeyMember(const Operand &operand)
@@ -34,10 +45,6 @@ bool KeyMember::isValNum() const {
     return m_isValNum;
 }
 
-bool KeyMember::isConst() const {
-    return false;
-}
-
 std::string KeyMember::toStr() {
     // valNum
     if (m_isValNum) return m_valNum->toStr();
@@ -49,30 +56,79 @@ bool KeyMember::isSame(KeyMember other) {
     // is_valNum same
     // content same
     if (this->isValNum() != other.isValNum()) {
-        std::printf("keymember kind dif\n");
+//        std::printf("keymember kind dif\n");
         return false;
     }
     if (this->isValNum() && this->getValNum() != other.getValNum()) {
-        std::printf("keymember valnum dif\n");
+//        std::printf("keymember valnum dif\n");
         return false;
     }
     if (!this->isValNum() && !this->getOperand().isSame(other.getOperand())) {
-        std::printf("keymember operand dif\n");
+//        std::printf("keymember operand dif\n");
         return false;
     }
     return true;
+}
+
+bool KeyMember::isConstNum() {
+    if (m_isValNum) {
+        return m_valNum->isConstNum();
+    }
+    return m_operand.isConstNum();
+}
+
+long KeyMember::getConstNum() {
+    assert(this->isConstNum());
+    if (m_valNum) {
+        return m_valNum->getConstNum();
+    }
+    return m_operand.getConstNum();
 }
 
 
 // LVNKey
 
 LVNKey::LVNKey(int opcode, KeyMember mem1)
-        : m_opcode(opcode), m_numMembers(1), m_members{mem1, KeyMember()} {
+        : m_opcode(opcode), m_numMembers(1), m_isConstNum(false), m_members{mem1, KeyMember()} {
+    if (!mem1.isConstNum()) {
+        return;
+    }
+    // only mov, neg, conv opcode can keep const num for 1 operand
+    if (match_hl(HINS_mov_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum();
+    } else if (match_hl(HINS_neg_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = - mem1.getConstNum();
+    } else if (matchHlConv(m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum();
+    }
 }
 
 LVNKey::LVNKey(int opcode, KeyMember mem1, KeyMember mem2)
-        : m_opcode(opcode), m_numMembers(2), m_members{mem1, mem2} {
+        : m_opcode(opcode), m_numMembers(2), m_isConstNum(false), m_members{mem1, mem2} {
     sortMember();
+    // only add, sub, mul, div, mod can keep const num for 2 operand
+    if (!mem1.isConstNum() || !mem2.isConstNum()) {
+        return;
+    }
+    if (match_hl(HINS_add_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum() + mem2.getConstNum();
+    } else if (match_hl(HINS_sub_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum() - mem2.getConstNum();
+    } else if (match_hl(HINS_mul_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum() * mem2.getConstNum();
+    } else if (match_hl(HINS_div_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum() / mem2.getConstNum();
+    } else if (match_hl(HINS_mod_b, m_opcode)) {
+        m_isConstNum = true;
+        m_constNum = mem1.getConstNum() % mem2.getConstNum();
+    }
 }
 
 LVNKey::~LVNKey() {
@@ -90,7 +146,6 @@ KeyMember LVNKey::getMember(unsigned int index) const {
     assert(index < m_numMembers);
     return m_members[index];
 }
-
 
 void LVNKey::sortMember() {
     if (m_numMembers == 1) return;
@@ -146,12 +201,22 @@ bool LVNKey::isSame(std::shared_ptr <LVNKey> other) {
     }
     for (auto i = 0; i < this->getNumMembers(); i++) {
         if (!this->getMember(i).isSame(other->getMember(i))) {
-            std::printf("%dth mem in key dif\n", i);
+//            std::printf("%dth mem in key dif\n", i);
             return false;
         }
     }
     return true;
 }
+
+bool LVNKey::isConstNum() {
+    return m_isConstNum;
+}
+
+long LVNKey::getConstNum() {
+    assert(this->isConstNum());
+    return m_constNum;
+}
+
 
 // ValueNumber
 
@@ -177,3 +242,13 @@ std::shared_ptr <LVNKey> ValueNumber::getLVNKey() const {
 std::string ValueNumber::toStr() {
     return cpputil::format("Val<num: %d, reg: %d>", m_valNum, m_origVreg);
 }
+
+bool ValueNumber::isConstNum() {
+    return m_lvnKey->isConstNum();
+}
+
+long ValueNumber::getConstNum() {
+    assert(this->isConstNum());
+    return m_lvnKey->getConstNum();
+}
+

@@ -8,6 +8,7 @@
 #include "lowlevel_codegen.h"
 #include "cfg.h"
 #include "highlevel_local_optimize.h"
+#include "local_reg_allocation.h"
 
 namespace {
 
@@ -106,17 +107,30 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         HighlevelLocalOptimize hl_opts(cfg);
         cfg = hl_opts.transform_cfg();
 
-        // TODO: uncomment these 2
+        // local reg allocation
+        LocalRegAllocation lra(cfg, hl_iseq);
+        // TODO: replace lra_cfg with cfg
+        std::shared_ptr<ControlFlowGraph> lra_cfg = lra.transform_cfg();
+
         // Convert the transformed high-level CFG back to an InstructionSequence
-//        cur_hl_iseq = cfg->create_instruction_sequence();
+        cur_hl_iseq = cfg->create_instruction_sequence();
 
         // The function definition AST might have information needed for
         // low-level code generation
-//        cur_hl_iseq->set_funcdef_ast(funcdef_ast);
+        cur_hl_iseq->set_funcdef_ast(funcdef_ast);
     }
 
-    // TODO: change it to cur_hl_iseq
-    std::shared_ptr <InstructionSequence> ll_iseq = translate_hl_to_ll(hl_iseq);
+//    std::printf("\n\nstart printing orig_highlevel code============\n\n");
+//    PrintHighLevelCode().print_instructions(hl_iseq);
+//    std::printf("\n\nend printing orig_highlevel code============\n\n");
+//
+//    std::printf("\n\nstart printing new_highlevel code============\n\n");
+//    PrintHighLevelCode().print_instructions(cur_hl_iseq);
+//    std::printf("\n\nend printing new_highlevel code============\n\n");
+
+    // keep info for global reg alloc
+    cur_hl_iseq->setCalleeVec(hl_iseq->getCalleeVec());
+    std::shared_ptr <InstructionSequence> ll_iseq = translate_hl_to_ll(cur_hl_iseq);
 
     // TODO: if optimizations are enabled, could do analysis/transformation of low-level code
 
@@ -169,18 +183,19 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
         m_total_memory_storage += (16 - (m_total_memory_storage % 16));
 
 
-    // push callee-saved regs to stack
-    // depend on size of occurVars, max 5
-    // order: r12-r15, rbx
-    // pop back before ret
-    // also set the vreg-mreg map for global allocation
-    m_numPush = std::min(static_cast<int>(hl_iseq->m_occurVarsVec.size()), 5);
-    for (int i = 0; i < m_numPush; i++) {
-        Operand operand = Operand(Operand::MREG64, m_callee[i]);
-        ll_iseq->append(new Instruction(MINS_PUSHQ, operand));
-        m_mregMap.insert(std::pair<int, MachineReg>(hl_iseq->m_occurVarsVec[i].first, m_callee[i]));
+    if (m_optimize) {
+        // push callee-saved regs to stack
+        // depend on size of occurVars, max 5
+        // order: r12-r15, rbx
+        // pop back before ret
+        // also set the vreg-mreg map for global allocation
+        m_numPush = std::min(static_cast<int>(hl_iseq->m_occurVarsVec.size()), 5);
+        for (int i = 0; i < m_numPush; i++) {
+            Operand operand = Operand(Operand::MREG64, m_callee[i]);
+            ll_iseq->append(new Instruction(MINS_PUSHQ, operand));
+            m_mregMap.insert(std::pair<int, MachineReg>(hl_iseq->m_occurVarsVec[i].first, m_callee[i]));
+        }
     }
-
 
     // Iterate through high level instructions
     for (auto i = hl_iseq->cbegin(); i != hl_iseq->cend(); ++i) {
@@ -299,13 +314,14 @@ void LowLevelCodeGen::translate_instruction(Instruction *hl_ins, const std::shar
     }
 
     if (hl_opcode == HINS_ret) {
-        // pop callee-saved regs from stack
-        // reverse order
-        for (int i = 0; i < m_numPush; i++) {
-            Operand operand = Operand(Operand::MREG64, m_callee[m_numPush - i - 1]);
-            ll_iseq->append(new Instruction(MINS_POPQ, operand));
+        if (m_optimize) {
+            // pop callee-saved regs from stack
+            // reverse order
+            for (int i = 0; i < m_numPush; i++) {
+                Operand operand = Operand(Operand::MREG64, m_callee[m_numPush - i - 1]);
+                ll_iseq->append(new Instruction(MINS_POPQ, operand));
+            }
         }
-
         ll_iseq->append(new Instruction(MINS_RET));
         return;
     }
@@ -627,6 +643,7 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         iter = m_mregMap.find(numVreg);
         if (iter != m_mregMap.end()) {
             // in m_mregMap, use machine registers
+            // TODO: use appropriate mreg with correct size
             Operand operand(Operand::MREG64, iter->second);
             return operand;
         }

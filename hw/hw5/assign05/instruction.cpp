@@ -33,3 +33,7 @@ const Operand &Instruction::get_operand(unsigned index) const {
     return m_operands[index];
 }
 
+void Instruction::setOperand(int idx, Operand operand) {
+    assert(idx < m_num_operands);
+    m_operands[idx] = operand;
+}

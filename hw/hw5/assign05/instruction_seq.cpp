@@ -74,3 +74,11 @@ unsigned InstructionSequence::get_index_of_labeled_instruction(const std::string
   }
   RuntimeError::raise("no instruction has label '%s'", label.c_str());
 }
+
+void InstructionSequence::setCalleeVec(std::vector <std::pair<int, int>> occurVarsVec) {
+    m_occurVarsVec = occurVarsVec;
+}
+
+std::vector <std::pair<int, int>> InstructionSequence::getCalleeVec() {
+    return m_occurVarsVec;
+}

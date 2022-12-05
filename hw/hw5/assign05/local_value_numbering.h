@@ -25,6 +25,7 @@ private:
     Operand m_operand;
     std::shared_ptr <ValueNumber> m_valNum;
     bool m_isValNum;
+
 public:
     KeyMember(const Operand &operand);
 
@@ -36,8 +37,6 @@ public:
 
     bool isValNum() const;
 
-    bool isConst() const;
-
     std::shared_ptr <ValueNumber> getValNum() const;
 
     const Operand &getOperand() const;
@@ -45,7 +44,13 @@ public:
     std::string toStr();
 
     bool isSame(KeyMember other);
+
+    bool isConstNum();
+
+    long getConstNum();
 };
+
+
 
 
 class LVNKey {
@@ -53,6 +58,8 @@ private:
     int m_opcode;
     unsigned m_numMembers;
     KeyMember m_members[2];
+    bool m_isConstNum;
+    long m_constNum;
 
 public:
 //    LVNKey(int ); // no dependency, m_opcode =
@@ -72,6 +79,10 @@ public:
     std::string toStr();
 
     bool isSame(std::shared_ptr<LVNKey> other);
+
+    bool isConstNum();
+
+    long getConstNum();
 
 private:
     void sortMember();
@@ -97,6 +108,10 @@ public:
     std::shared_ptr <LVNKey> getLVNKey() const;
 
     std::string toStr();
+
+    bool isConstNum();
+
+    long getConstNum();
 };
 
 

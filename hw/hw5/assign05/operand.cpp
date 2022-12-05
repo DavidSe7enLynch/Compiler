@@ -69,7 +69,7 @@ namespace {
 }
 
 Operand::Operand(Kind kind)
-        : m_kind(kind), m_basereg(-1), m_index_reg(-1), m_imm_ival(-1) {
+        : m_kind(kind), m_basereg(-1), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false) {
 }
 
 // ival1 is either basereg or imm_ival (depending on operand Kind)
@@ -87,7 +87,7 @@ Operand::Operand(Kind kind, long ival1)
 
 // ival2 is either index_reg or imm_ival/offset (depending on operand kind)
 Operand::Operand(Kind kind, int basereg, long ival2)
-        : m_kind(kind), m_basereg(basereg), m_index_reg(-1), m_imm_ival(-1) {
+        : m_kind(kind), m_basereg(basereg), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false) {
     const OperandProperties &props = oprops(kind);
     if (props.has_index_reg()) {
         m_index_reg = int(ival2);
@@ -199,11 +199,33 @@ bool Operand::isSame(const Operand &other) const {
         return true;
     }
     if (m_kind == IMM_IVAL && m_imm_ival == other.get_imm_ival()) {
-        std::printf("in op isSame imm_ival: %d = %d\n", m_imm_ival, other.get_imm_ival());
+//        std::printf("in op isSame imm_ival: %d = %d\n", m_imm_ival, other.get_imm_ival());
         return true;
     }
     if (m_kind == IMM_LABEL && m_label == other.get_label()) {
         return true;
     }
     return false;
+}
+
+bool Operand::isConstNum() {
+    return this->is_imm_ival();
+}
+
+long Operand::getConstNum() {
+    assert(this->is_imm_ival());
+    return m_imm_ival;
+}
+
+bool Operand::hasMreg() const {
+    return m_hasMreg;
+}
+
+void Operand::setMreg(std::pair<MachineReg, int> mreg) const {
+    m_hasMreg = true;
+    m_mreg = mreg;
+}
+
+std::pair<MachineReg, int> Operand::getMreg() const {
+    return m_mreg;
 }
