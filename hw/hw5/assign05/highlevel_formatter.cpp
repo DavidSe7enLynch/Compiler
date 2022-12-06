@@ -29,19 +29,19 @@ std::string HighLevelFormatter::format_operand(const Operand &operand) const {
         // has allocated mreg
         int mreg = operand.getMreg().first;
         int size = operand.getMreg().second;
-        std::printf("format_operand, hasMreg%d, mreg%d, size%d, vreg%d\n", operand.hasMreg(), mreg, size, operand.get_base_reg());
+//        std::printf("format_operand, hasMreg%d, mreg%d, size%d, vreg%d\n", operand.hasMreg(), mreg, size, operand.get_base_reg());
         Operand::Kind kind = select_mreg_kind(size);
         Operand mregOperand(kind, mreg);
         std::string mregStr = LowLevelFormatter().format_operand(mregOperand);
         switch (operand.get_kind()) {
             case Operand::VREG:
-                return cpputil::format("vr%d%s", operand.get_base_reg(), mregStr.c_str());
+                return cpputil::format("vr%d<%s>", operand.get_base_reg(), mregStr.c_str());
             case Operand::VREG_MEM:
-                return cpputil::format("(vr%d%s)", operand.get_base_reg(), mregStr.c_str());
+                return cpputil::format("(vr%d<%s>)", operand.get_base_reg(), mregStr.c_str());
             case Operand::VREG_MEM_IDX:
-                return cpputil::format("(vr%d%s, vt%d)", operand.get_base_reg(), mregStr.c_str(), operand.get_index_reg());
+                return cpputil::format("(vr%d<%s>, vt%d)", operand.get_base_reg(), mregStr.c_str(), operand.get_index_reg());
             case Operand::VREG_MEM_OFF:
-                return cpputil::format("%ld(vr%dq%s)", operand.get_imm_ival(), operand.get_base_reg(), mregStr.c_str());
+                return cpputil::format("%ld(vr%dq<%s>)", operand.get_imm_ival(), operand.get_base_reg(), mregStr.c_str());
             default:
                 return Formatter::format_operand(operand);
         }

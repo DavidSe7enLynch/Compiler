@@ -110,7 +110,8 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         // local reg allocation
         LocalRegAllocation lra(cfg, hl_iseq);
         // TODO: replace lra_cfg with cfg
-        std::shared_ptr<ControlFlowGraph> lra_cfg = lra.transform_cfg();
+//        std::shared_ptr<ControlFlowGraph> lra_cfg = lra.transform_cfg();
+        cfg = lra.transform_cfg();
 
         // Convert the transformed high-level CFG back to an InstructionSequence
         cur_hl_iseq = cfg->create_instruction_sequence();
@@ -120,21 +121,29 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         cur_hl_iseq->set_funcdef_ast(funcdef_ast);
     }
 
-//    std::printf("\n\nstart printing orig_highlevel code============\n\n");
-//    PrintHighLevelCode().print_instructions(hl_iseq);
-//    std::printf("\n\nend printing orig_highlevel code============\n\n");
-//
-//    std::printf("\n\nstart printing new_highlevel code============\n\n");
-//    PrintHighLevelCode().print_instructions(cur_hl_iseq);
-//    std::printf("\n\nend printing new_highlevel code============\n\n");
+    std::printf("\n\nstart printing orig_highlevel code============\n\n");
+    PrintHighLevelCode().print_instructions(hl_iseq);
+    std::printf("\n\nend printing orig_highlevel code============\n\n");
+
+    std::printf("\n\nstart printing new_highlevel code============\n\n");
+    PrintHighLevelCode().print_instructions(cur_hl_iseq);
+    std::printf("\n\nend printing new_highlevel code============\n\n");
 
     // keep info for global reg alloc
     cur_hl_iseq->setCalleeVec(hl_iseq->getCalleeVec());
-    std::shared_ptr <InstructionSequence> ll_iseq = translate_hl_to_ll(cur_hl_iseq);
+    std::shared_ptr <InstructionSequence> orig_ll_iseq = translate_hl_to_ll(hl_iseq);
+    std::shared_ptr <InstructionSequence> cur_ll_iseq = translate_hl_to_ll(cur_hl_iseq);
 
     // TODO: if optimizations are enabled, could do analysis/transformation of low-level code
+//    std::printf("\n\nstart printing orig_lowlevel code============\n\n");
+//    PrintLowLevelCode().print_instructions(orig_ll_iseq);
+//    std::printf("\n\nend printing orig_lowlevel code============\n\n");
+//
+//    std::printf("\n\nstart printing new_lowlevel code============\n\n");
+//    PrintLowLevelCode().print_instructions(cur_ll_iseq);
+//    std::printf("\n\nend printing new_lowlevel code============\n\n");
 
-    return ll_iseq;
+    return cur_ll_iseq;
 }
 
 std::shared_ptr <InstructionSequence>
@@ -153,6 +162,7 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
     // optimization passes.
     ll_iseq->set_funcdef_ast(funcdef_ast);
 
+    // TODO: recalculate memory for vregs
     // Determine the total number of bytes of memory storage
     // that the function needs. This should include both variables that
     // *must* have storage allocated in memory (e.g., arrays), and also
@@ -638,14 +648,22 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
     if (hl_opcode.get_kind() == Operand::VREG) {
         int numVreg = hl_opcode.get_base_reg();
 
-        // if in m_mregMap, use machine registers
+        // for function variables
+        // if in m_mregMap, use callee-saved machine registers
         std::map<int, MachineReg>::iterator iter;
         iter = m_mregMap.find(numVreg);
         if (iter != m_mregMap.end()) {
             // in m_mregMap, use machine registers
-            // TODO: use appropriate mreg with correct size
-            Operand operand(Operand::MREG64, iter->second);
+            Operand::Kind kind = select_mreg_kind(size);
+            Operand operand(kind, iter->second);
             return operand;
+        }
+
+        // for temp vregs with mreg allocation
+        if (hl_opcode.hasMreg()) {
+            int size = hl_opcode.getMreg().second;
+            Operand mregOperand = Operand(select_mreg_kind(size), hl_opcode.getMreg().first);
+            return mregOperand;
         }
 
         // map vreg to memory by numbers

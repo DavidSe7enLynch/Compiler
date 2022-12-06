@@ -14,6 +14,11 @@ LocalRegAllocation::LocalRegAllocation(const std::shared_ptr <ControlFlowGraph> 
 
 std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(const BasicBlock *orig_bb) {
     // init
+    // only deal with normal blocks with instructions
+    // get live regs at beg/end
+    // get available mregs
+    // clear maps
+    // get spilled num
     if (orig_bb->get_kind() != BASICBLOCK_INTERIOR || orig_bb->get_length() == 0) {
         // ENTRY or EXIT block
         std::shared_ptr <InstructionSequence> new_bb(new InstructionSequence());
@@ -23,8 +28,11 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
     m_factEnd = m_liveVregAll.get_fact_at_end_of_block(orig_bb);
     initAvailMregs(orig_bb);
     m_mapMregVreg.clear();
-    std::printf("start block %d============\n", orig_bb->get_id());
-    printMapVec();
+    m_mapVregMreg.clear();
+    calSpillAddr(orig_bb);
+
+//    std::printf("start block %d============\n", orig_bb->get_id());
+//    printMapVec();
 
     // new_bb
     std::shared_ptr <InstructionSequence> new_bb(new InstructionSequence());
@@ -41,42 +49,58 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
         // find temp vreg
         for (auto j = 0; j < (*i)->get_num_operands(); j++) {
             const Operand &operand = (*i)->get_operand(j);
-            if (operand.has_base_reg()) {
-                int vreg = operand.get_base_reg();
-                if (!m_factBeg.test(vreg)
-                        && !m_factEnd.test(vreg)
-                        && !m_funcVars.test(vreg)
-                        && vreg > 9
-                        && !isAllocatedVreg(vreg)) {
-                    // get a new temp vreg, store it in one avail mreg
-                    if (m_availMregs.empty()) {
-                        // no available mreg
-                        // TODO: spill and restore
-                        std::printf("\n\n\n\n============Warning, no available mreg=============\n\n\n\n");
-                    } else {
-                        MachineReg mreg = m_availMregs.back();
-                        // delete from avail
-                        m_availMregs.pop_back();
-                        // add pair to map
-                        m_mapMregVreg.insert(std::pair<MachineReg, int>(mreg, vreg));
-                        // set to new operand
-                        int size = highlevel_opcode_get_idx_operand_size(HighLevelOpcode((*i)->get_opcode()), j);
-                        std::pair<MachineReg, int> mregPair(mreg, size);
-                        Operand newOperand(operand.get_kind(), operand.get_base_reg());
-                        newOperand.setMreg(mregPair);
-                        newIns->setOperand(j, newOperand);
-                        std::printf("vreg %d mapped to mreg %d, mregPair<%d, %d>\n", vreg, (int)mreg, (int)mreg, size);
-                    }
+            if (!operand.has_base_reg()) continue;
+
+            int vreg = operand.get_base_reg();
+            if (!m_factBeg.test(vreg)
+                    && !m_factEnd.test(vreg)
+                    && !m_funcVars.test(vreg)
+                    && vreg > 9) {
+                // get a temp vreg, store it in one avail mreg
+                std::map<int, std::pair<MachineReg, int>>::iterator iter = m_mapVregMreg.find(vreg);
+                if (iter != m_mapVregMreg.end()) {
+                    // get an allocated vreg
+                    // set a new operand with corresponding mreg
+//                    MachineReg mreg = iter->second.first;
+//                    int size = iter->second.second;
+//                    std::pair<MachineReg, int> mregPair(mreg, size);
+                    std::pair<MachineReg, int> mregPair(iter->second);
+                    Operand newOperand(operand.get_kind(), operand.get_base_reg());
+                    newOperand.setMreg(mregPair);
+                    newIns->setOperand(j, newOperand);
+                } else if (m_availMregs.empty()) {
+                    // no available mreg
+                    // TODO: spill and restore
+                    std::printf("\n\n\n\n============Warning, no available mreg=============\n\n\n\n");
+                } else {
+                    // get a new temp vreg
+                    MachineReg mreg = m_availMregs.back();
+                    // delete from avail
+                    m_availMregs.pop_back();
+
+                    HighLevelOpcode opcode = HighLevelOpcode((*i)->get_opcode());
+                    int size = highlevel_opcode_get_idx_operand_size(opcode, j);
+                    std::pair<MachineReg, int> mregPair(mreg, size);
+
+                    // add pair to 2 maps
+                    m_mapMregVreg.insert(std::pair<MachineReg, int>(mreg, vreg));
+                    m_mapVregMreg.insert(std::pair<int, std::pair<MachineReg, int>>(vreg, mregPair));
+
+                    // set to new operand
+                    Operand newOperand(operand.get_kind(), operand.get_base_reg());
+                    newOperand.setMreg(mregPair);
+                    newIns->setOperand(j, newOperand);
+//                    std::printf("vreg %d mapped to mreg %d, mregPair<%d, %d>\n", vreg, (int)mreg, (int)mreg, size);
                 }
             }
         }
         new_bb->append(newIns);
-        printMapVec();
+//        printMapVec();
     }
 
-    std::printf("\n\nstart printing block %d============\n\n", orig_bb->get_id());
-    PrintHighLevelCode().print_instructions(new_bb);
-    std::printf("\n\nend printing block %d============\n\n", orig_bb->get_id());
+//    std::printf("\n\nstart printing block %d============\n\n", orig_bb->get_id());
+//    PrintHighLevelCode().print_instructions(new_bb);
+//    std::printf("\n\nend printing block %d============\n\n", orig_bb->get_id());
     return new_bb;
 }
 
@@ -117,15 +141,20 @@ void LocalRegAllocation::clearDeadAlloc(const BasicBlock *orig_bb, Instruction *
     LiveVregs::FactType factInsBef = m_liveVregAll.get_fact_before_instruction(orig_bb, ins);
     LiveVregs::FactType factInsAft = m_liveVregAll.get_fact_after_instruction(orig_bb, ins);
 
-    std::printf("\n%s\n", m_liveVregAll.fact_to_string(factInsBef).c_str());
-    std::printf("%s\n", HighLevelFormatter().format_instruction(ins).c_str());
-    std::printf("%s\n", m_liveVregAll.fact_to_string(factInsAft).c_str());
+//    std::printf("\n%s\n", m_liveVregAll.fact_to_string(factInsBef).c_str());
+//    std::printf("%s\n", HighLevelFormatter().format_instruction(ins).c_str());
+//    std::printf("%s\n", m_liveVregAll.fact_to_string(factInsAft).c_str());
+//    printMapVec();
 
     for (auto iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end();) {
         if (!factInsBef.test(iter->second)) {
             // dead vreg
-            std::printf("vreg %d died, mreg %d released\n", iter->second, (int)iter->first);
+            // erase from 2 maps
+//            std::printf("vreg %d died, mreg %d released\n", iter->second, (int)iter->first);
             m_availMregs.push_back(iter->first);
+            auto iter_mapVregMreg = m_mapVregMreg.find(iter->second);
+            assert(iter_mapVregMreg != m_mapVregMreg.end());
+            m_mapVregMreg.erase(iter_mapVregMreg);
             m_mapMregVreg.erase(iter++);
         } else {
             iter++;
@@ -140,22 +169,57 @@ int LocalRegAllocation::highlevel_opcode_get_idx_operand_size(HighLevelOpcode op
     return highlevel_opcode_get_source_operand_size(opcode);
 }
 
-bool LocalRegAllocation::isAllocatedVreg(int vreg) {
-    for (auto iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end(); ++iter) {
-        if (iter->second == vreg) return true;
-    }
-    return false;
-}
+//std::map<MachineReg, int>::iterator LocalRegAllocation::getIterAllocatedVreg(int vreg) {
+//    std::map<MachineReg, int>::iterator iter;
+//    for (iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end(); ++iter) {
+//        if (iter->second == vreg) return iter;
+//    }
+//    return iter;
+//}
 
 void LocalRegAllocation::printMapVec() {
-    // print map and vector
+    // print 2 maps and vector
     std::printf("\nmapMregVreg===========\n");
     for (auto iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end(); ++iter) {
         std::printf("(%d, %d), ", (int)iter->first, iter->second);
+    }
+    std::printf("\nmapVregMreg===========\n");
+    for (auto iter = m_mapVregMreg.begin(); iter != m_mapVregMreg.end(); ++iter) {
+        std::printf("(%d, ", (int)iter->first);
+        std::printf("<%d, %d>), ", (int)iter->second.first, iter->second.second);
     }
     std::printf("\nvecAvailMreg===========\n");
     for (auto iter = m_availMregs.begin(); iter != m_availMregs.end(); ++iter) {
         std::printf("%d, ", (int)*iter);
     }
     std::printf("\n\n");
+}
+
+//Operand LocalRegAllocation::setMregOperand() {
+//
+//}
+
+void LocalRegAllocation::calSpillAddr(const BasicBlock *orig_bb) {
+    int maxAvail = 0;
+    for (auto i = orig_bb->cbegin(); i != orig_bb->cend(); ++i) {
+//        LiveVregs::FactType factInsBef = m_liveVregAll.get_fact_before_instruction(orig_bb, *i);
+        int tempAvail = 0;
+        LiveVregs::FactType factInsAft = m_liveVregAll.get_fact_after_instruction(orig_bb, *i);
+        for (unsigned j = 0; j < LiveVregsAnalysis::MAX_VREGS; j++) {
+            if (factInsAft.test(j)
+                    && !m_factBeg.test(j)
+                    && !m_factEnd.test(j)
+                    && !m_funcVars.test(j)) {
+                // a vreg that needs to be allocated in mreg
+                tempAvail += 1;
+            }
+        }
+        maxAvail = std::max(tempAvail, maxAvail);
+    }
+    // no need to spill
+    if (maxAvail == 0) return;
+    // need to spill
+    for (auto i = 0; i < maxAvail; i++) {
+        m_spillAddr.push_back()
+    }
 }

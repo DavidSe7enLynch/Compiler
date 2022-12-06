@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "lowlevel.h"
 #include "instruction_seq.h"
+#include "print_lowlevel_code.h"
 
 // A LowLevelCodeGen object transforms an InstructionSequence containing
 // high-level instructions into an InstructionSequence containing

@@ -123,6 +123,10 @@ EOF5
       size_suffix = is_src ? suffix[0] : suffix[1]
       raise "Huh?" if !NBYTES.has_key?(size_suffix.to_sym)
       operand_size = NBYTES[size_suffix.to_sym]
+    elsif opcode_name_str == 'HINS_localaddr' && !is_src
+      operand_size = 8
+    elsif opcode_name_str.start_with?('HINS_cmp') && !is_src
+      operand_size = 4
     elsif opcode_name_str.end_with?('_b')
       operand_size = 1
     elsif opcode_name_str.end_with?('_w')

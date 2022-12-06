@@ -26,7 +26,13 @@ private:
     // vr1-vr6
     // %rdi, %rsi, %rdx, %rcx, %r8, %r9
     std::vector<MachineReg> m_availMregs;
+    // 2 maps
+    // <mreg, vreg>
+    // <vreg, <mreg, size>>
     std::map<MachineReg, int> m_mapMregVreg;
+    std::map<int, std::pair<MachineReg, int>> m_mapVregMreg;
+    // space for spill
+    std::vector<int> m_spillAddr;
 public:
     LocalRegAllocation(const std::shared_ptr<ControlFlowGraph> &cfg, const std::shared_ptr <InstructionSequence> &hl_iseq);
 
@@ -53,8 +59,10 @@ private:
     bool isArgVreg(int vreg);
     void clearDeadAlloc(const BasicBlock *orig_bb, Instruction *ins);
     int highlevel_opcode_get_idx_operand_size(HighLevelOpcode opcode, int idx);
-    bool isAllocatedVreg(int vreg);
+//    std::map<MachineReg, int>::iterator getIterAllocatedVreg(int vreg);
     void printMapVec();
+    void calSpillAddr(const BasicBlock *orig_bb);
+//    Operand setMregOperand();
 };
 
 
