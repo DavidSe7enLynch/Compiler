@@ -35,3 +35,5 @@ imm_label, label example16
 negative memory example1
 
 reassign (a compile-time const num) to an existed func var example22
+
+consider "count + 1" as the same key

@@ -67,9 +67,9 @@ std::shared_ptr <InstructionSequence> HighlevelLocalOptimize::transform_basic_bl
     m_factBeg.reset();
     m_factEnd.reset();
 
-//    std::printf("\n\nstart printing new_bb %d ============\n", orig_bb->get_id());
-//    PrintHighLevelCode().print_instructions(new_bb);
-//    std::printf("end printing new_bb %d ============\n\n", orig_bb->get_id());
+    std::printf("\n\nstart printing new_bb %d ============\n", orig_bb->get_id());
+    PrintHighLevelCode().print_instructions(new_bb);
+    std::printf("end printing new_bb %d ============\n\n", orig_bb->get_id());
     return new_bb;
 }
 
@@ -124,13 +124,13 @@ void HighlevelLocalOptimize::localValueNumbering(const BasicBlock *orig_bb) {
                 || isArgRetVreg((*i)->get_operand(0).get_base_reg())
                 || m_factBeg.test((*i)->get_operand(0).get_base_reg())
                 || m_factEnd.test((*i)->get_operand(0).get_base_reg())) {
-//            std::printf("%s.........\n\n", HighLevelFormatter().format_instruction(*i).c_str());
+            std::printf("%s.........\n\n", HighLevelFormatter().format_instruction(*i).c_str());
             continue;
         }
 
         // get LVNKey for dst vreg
         std::shared_ptr <LVNKey> lvnKey = getLVNKey((*i));
-//        std::printf("%s.........%s\n", HighLevelFormatter().format_instruction(*i).c_str(), lvnKey->toStr().c_str());
+        std::printf("%s.........%s\n", HighLevelFormatter().format_instruction(*i).c_str(), lvnKey->toStr().c_str());
 
         // check if lvnKey existed
         const Operand &opDst = (*i)->get_operand(0);
@@ -140,7 +140,7 @@ void HighlevelLocalOptimize::localValueNumbering(const BasicBlock *orig_bb) {
                 // lvnKey existed
                 // label dst vreg with orig valNum
                 m_mapVregVal.insert(std::pair < int, std::shared_ptr < ValueNumber >> (opDst.get_base_reg(), iter->second));
-//                std::printf("val existed: %s\n\n", iter->second->toStr().c_str());
+                std::printf("val existed: %s\n\n", iter->second->toStr().c_str());
                 break;
             }
         }
@@ -156,6 +156,7 @@ void HighlevelLocalOptimize::localValueNumbering(const BasicBlock *orig_bb) {
             auto iter = m_mapVregVal.find(vreg);
             if (iter != m_mapVregVal.end()) {
                 // a redefine of an existed vreg, which should be a func var
+                std::printf("val redef, erase old\n");
                 m_mapVregVal.erase(iter);
                 m_mapVregVal.insert(std::pair < int, std::shared_ptr < ValueNumber >>(vreg, value));
             } else {
@@ -164,10 +165,10 @@ void HighlevelLocalOptimize::localValueNumbering(const BasicBlock *orig_bb) {
 
             m_mapKeyVal.insert(std::pair < std::shared_ptr < LVNKey > ,
                                std::shared_ptr < ValueNumber >> (lvnKey, value));
-//            std::printf("val new: %s\n\n", value->toStr().c_str());
+            std::printf("val new: %s\n\n", value->toStr().c_str());
         }
     }
-//    printMaps();
+    printMaps();
 }
 
 void HighlevelLocalOptimize::printMaps() {

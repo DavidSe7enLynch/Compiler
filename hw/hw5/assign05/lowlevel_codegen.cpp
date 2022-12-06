@@ -120,11 +120,11 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         cur_hl_iseq->set_funcdef_ast(funcdef_ast);
     }
 
-//    std::printf("\n\norig_highlevel code============\n\n");
-//    PrintHighLevelCode().print_instructions(hl_iseq);
-//
-//    std::printf("\n\nnew_highlevel code============\n\n");
-//    PrintHighLevelCode().print_instructions(cur_hl_iseq);
+    std::printf("\n\norig_highlevel code============\n\n");
+    PrintHighLevelCode().print_instructions(hl_iseq);
+
+    std::printf("\n\nnew_highlevel code============\n\n");
+    PrintHighLevelCode().print_instructions(cur_hl_iseq);
 
     // keep info for global reg alloc
     cur_hl_iseq->setCalleeVec(hl_iseq->getCalleeVec());
