@@ -7,6 +7,8 @@
 
 #include <map>
 #include <memory>
+#include <cassert>
+#include "node.h"
 #include "cfg_transform.h"
 #include "live_vregs.h"
 #include "highlevel_defuse.h"
@@ -16,13 +18,38 @@
 #include "highlevel.h"
 #include "lowlevel_formatter.h"
 
+/**
+    memory:
 
+    1. func vars that must be in memory (not a vreg): array/struct
+    2. (vregs that are alive between blocks - func vars) + func vars cannot be stored in callee-saved mregs
+    3. spilled temp vregs
+
+    1 is already calculated local_storage_allocation
+    2 need to be determined for the whole cfg
+    3 need to be determined for each block
+    each vreg takes 8 bytes
+    2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+
+ */
 class LocalRegAllocation : public ControlFlowGraphTransform {
 private:
+    // for whole cfg, will not change once initialized
+    int m_localStorageClass1;
     LiveVregs m_liveVregAll;
+    LiveVregs::FactType m_funcVars; // calculated during construction
+    LiveVregs::FactType m_mregFuncVars; // calculated during construction
+    LiveVregs::FactType m_memVreg; // class 2, calculated by calMemVreg()
+    // memory allocation for class 2 vregs
+    // <vreg, mem addr>
+    std::map<int, long> m_mapVregMemClass2; // calculated by allocateMemory()
+    // space for spill
+    std::vector<int> m_spillAddr; // calculated by allocateMemory()
+    long m_totalMemory;
+
+    // for each block
     LiveVregs::FactType m_factBeg;
     LiveVregs::FactType m_factEnd;
-    LiveVregs::FactType m_funcVars;
     // vr1-vr6
     // %rdi, %rsi, %rdx, %rcx, %r8, %r9
     std::vector<MachineReg> m_availMregs;
@@ -31,10 +58,18 @@ private:
     // <vreg, <mreg, size>>
     std::map<MachineReg, int> m_mapMregVreg;
     std::map<int, std::pair<MachineReg, int>> m_mapVregMreg;
-    // space for spill
-    std::vector<int> m_spillAddr;
+    // 2 maps for spilled mregs
+    // spilled mreg map, always spill 8 byte mreg
+    // <spilled mreg, vreg>
+    // <vreg, <mreg, size>>
+    std::map<MachineReg, int> m_mapSpilledMregVreg;
+    std::map<int, std::pair<MachineReg, int>> m_mapSpilledVregMreg;
+
 public:
     LocalRegAllocation(const std::shared_ptr<ControlFlowGraph> &cfg, const std::shared_ptr <InstructionSequence> &hl_iseq);
+
+    // do storage allocation here
+    virtual std::shared_ptr<ControlFlowGraph> transform_cfg();
 
     // Create a transformed version of the instructions in a basic block.
     // Note that an InstructionSequence "owns" the Instruction objects it contains,
@@ -59,10 +94,24 @@ private:
     bool isArgVreg(int vreg);
     void clearDeadAlloc(const BasicBlock *orig_bb, Instruction *ins);
     int highlevel_opcode_get_idx_operand_size(HighLevelOpcode opcode, int idx);
-//    std::map<MachineReg, int>::iterator getIterAllocatedVreg(int vreg);
     void printMapVec();
-    void calSpillAddr(const BasicBlock *orig_bb);
-//    Operand setMregOperand();
+    void calMemVreg();
+
+    /**
+     * allocate memory for this function
+     *
+     * memory:
+     * 1. func vars that must be in memory (not a vreg): array/struct
+     * 2. (vregs that are alive between blocks - func vars) + func vars cannot be stored in callee-saved mregs
+     * 3. spilled temp vregs
+     *
+     * 1: m_localStorageClass1
+     * 2: m_memVreg
+     * 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+     * 3: reserve max place needed () and allocate later
+     */
+    void allocateMemory();
+    int calMaxSpill();
 };
 
 

@@ -6,10 +6,12 @@
 #define HW5_LOCAL_VALUE_NUMBERING_H
 
 #include <memory>
+#include <cassert>
 #include "cpputil.h"
 #include "operand.h"
 #include "highlevel_formatter.h"
 #include "highlevel.h"
+
 
 class ValueNumber;
 

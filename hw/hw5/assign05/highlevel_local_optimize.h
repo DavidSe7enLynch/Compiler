@@ -46,7 +46,7 @@ private:
     bool isConstNum(int vreg);
     long getConstNum(int vreg);
     bool hasValNum(int vreg);
-    bool isArgVreg(int vreg);
+    bool isArgRetVreg(int vreg);
 };
 
 

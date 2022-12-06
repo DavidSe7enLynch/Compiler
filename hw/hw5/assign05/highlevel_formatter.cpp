@@ -3,6 +3,7 @@
 #include "instruction.h"
 #include "highlevel.h"
 #include "highlevel_formatter.h"
+#include <cassert>
 
 HighLevelFormatter::HighLevelFormatter() {
 }
@@ -11,8 +12,8 @@ HighLevelFormatter::~HighLevelFormatter() {
 }
 
 std::string HighLevelFormatter::format_operand(const Operand &operand) const {
-    if (!operand.hasMreg()) {
-        // no allocated mreg
+    if (!operand.hasMreg() && !operand.hasMemAddr()) {
+        // no allocated mreg or mem addr
         switch (operand.get_kind()) {
             case Operand::VREG:
                 return cpputil::format("vr%d", operand.get_base_reg());
@@ -26,12 +27,20 @@ std::string HighLevelFormatter::format_operand(const Operand &operand) const {
                 return Formatter::format_operand(operand);
         }
     } else {
-        // has allocated mreg
-        int mreg = operand.getMreg().first;
-        int size = operand.getMreg().second;
+        Operand mregOperand;
+        if (operand.hasMreg()) {
+            // has allocated mreg
+            int mreg = operand.getMreg().first;
+            int size = operand.getMreg().second;
 //        std::printf("format_operand, hasMreg%d, mreg%d, size%d, vreg%d\n", operand.hasMreg(), mreg, size, operand.get_base_reg());
-        Operand::Kind kind = select_mreg_kind(size);
-        Operand mregOperand(kind, mreg);
+            Operand::Kind kind = select_mreg_kind(size);
+            mregOperand = Operand(kind, mreg);
+        } else {
+            // has allocated mem addr
+            long memAddr = operand.getMemAddr();
+            // %rbp: 7
+            mregOperand = Operand(Operand::MREG64_MEM_OFF, 7, memAddr);
+        }
         std::string mregStr = LowLevelFormatter().format_operand(mregOperand);
         switch (operand.get_kind()) {
             case Operand::VREG:

@@ -122,6 +122,7 @@ LVNKey::LVNKey(int opcode, KeyMember mem1, KeyMember mem2)
     } else if (match_hl(HINS_mul_b, m_opcode)) {
         m_isConstNum = true;
         m_constNum = mem1.getConstNum() * mem2.getConstNum();
+        std::printf("mul key: %ld=%ld*%ld\n", m_constNum, mem1.getConstNum(), mem2.getConstNum());
     } else if (match_hl(HINS_div_b, m_opcode)) {
         m_isConstNum = true;
         m_constNum = mem1.getConstNum() / mem2.getConstNum();

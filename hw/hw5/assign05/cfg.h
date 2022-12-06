@@ -87,6 +87,8 @@ private:
   EdgeMap m_outgoing_edges;
   EdgeList m_empty_edge_list;
 
+  mutable long m_totalMemory;
+
   // A "Chunk" is a collection of BasicBlocks
   // connected by fall-through edges.  All of the blocks
   // in a Chunk must be emitted contiguously in the
@@ -171,6 +173,9 @@ public:
   // Return a "flat" InstructionSequence created from this ControlFlowGraph;
   // this is useful for optimization passes which create a transformed ControlFlowGraph
   std::shared_ptr<InstructionSequence> create_instruction_sequence() const;
+
+  long getTotalMemory() const;
+  void setTotalMemory(long totalMemory) const;
 
 private:
   std::vector<const BasicBlock *> get_blocks_in_code_order() const;

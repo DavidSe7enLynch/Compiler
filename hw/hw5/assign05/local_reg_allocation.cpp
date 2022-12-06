@@ -5,10 +5,15 @@
 #include "local_reg_allocation.h"
 
 LocalRegAllocation::LocalRegAllocation(const std::shared_ptr <ControlFlowGraph> &cfg, const std::shared_ptr <InstructionSequence> &hl_iseq)
-        : ControlFlowGraphTransform(cfg), m_liveVregAll(cfg) {
+        : ControlFlowGraphTransform(cfg), m_liveVregAll(cfg), m_localStorageClass1(hl_iseq->get_funcdef_ast()->getLocalTotalStorage()) {
     m_liveVregAll.execute();
-    for (auto i : hl_iseq->getCalleeVec()) {
-        m_funcVars.set(i.first);
+    for (int i = 0; i < hl_iseq->getCalleeVec().size(); i++) {
+        int vreg = hl_iseq->getCalleeVec().at(i).first;
+        m_funcVars.set(vreg);
+        // only first 4 can be allocated with mreg r12-r15
+        if (i < 4) {
+            m_mregFuncVars.set(vreg);
+        }
     }
 }
 
@@ -18,7 +23,6 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
     // get live regs at beg/end
     // get available mregs
     // clear maps
-    // get spilled num
     if (orig_bb->get_kind() != BASICBLOCK_INTERIOR || orig_bb->get_length() == 0) {
         // ENTRY or EXIT block
         std::shared_ptr <InstructionSequence> new_bb(new InstructionSequence());
@@ -29,7 +33,8 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
     initAvailMregs(orig_bb);
     m_mapMregVreg.clear();
     m_mapVregMreg.clear();
-    calSpillAddr(orig_bb);
+    m_mapSpilledMregVreg.clear();
+    m_mapSpilledVregMreg.clear();
 
 //    std::printf("start block %d============\n", orig_bb->get_id());
 //    printMapVec();
@@ -52,13 +57,24 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
             if (!operand.has_base_reg()) continue;
 
             int vreg = operand.get_base_reg();
+
+            // if a class 2 vreg, map it to memory
+            if (m_memVreg.test(vreg)) {
+                assert(m_mapVregMemClass2.count(vreg));
+                newIns->get_operand(j).setMemAddr(m_mapVregMemClass2.at(vreg));
+            }
+
             if (!m_factBeg.test(vreg)
                     && !m_factEnd.test(vreg)
                     && !m_funcVars.test(vreg)
                     && vreg > 9) {
                 // get a temp vreg, store it in one avail mreg
                 std::map<int, std::pair<MachineReg, int>>::iterator iter = m_mapVregMreg.find(vreg);
-                if (iter != m_mapVregMreg.end()) {
+                std::map<int, std::pair<MachineReg, int>>::iterator iterSpill = m_mapSpilledVregMreg.find(vreg);
+                if (iterSpill != m_mapSpilledVregMreg.end()) {
+                    // corresponds to a spilled mreg
+                    // TODO
+                } else if (iter != m_mapVregMreg.end()) {
                     // get an allocated vreg
                     // set a new operand with corresponding mreg
 //                    MachineReg mreg = iter->second.first;
@@ -70,8 +86,20 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
                     newIns->setOperand(j, newOperand);
                 } else if (m_availMregs.empty()) {
                     // no available mreg
-                    // TODO: spill and restore
                     std::printf("\n\n\n\n============Warning, no available mreg=============\n\n\n\n");
+                    // make sure there is reserved places for spilled mreg
+                    assert(m_spillAddr.size() > 0);
+
+                    // steps
+                    // choose a used mreg
+                    // insert it with its corresponding vreg to m_mapSpillMregVreg
+                    // insert a <vreg, <mreg, size>> pair to m_mapSpillVregMreg
+                    // remove these 2 from 2 maps: m_mapMregVreg, m_mapVregMreg
+                    // do not modify m_availMregs, since we immediately consume that mreg
+
+                    // add an instruction to spill the mreg
+                    // modify current instruction as normal allocation process
+                    // TODO
                 } else {
                     // get a new temp vreg
                     MachineReg mreg = m_availMregs.back();
@@ -169,14 +197,6 @@ int LocalRegAllocation::highlevel_opcode_get_idx_operand_size(HighLevelOpcode op
     return highlevel_opcode_get_source_operand_size(opcode);
 }
 
-//std::map<MachineReg, int>::iterator LocalRegAllocation::getIterAllocatedVreg(int vreg) {
-//    std::map<MachineReg, int>::iterator iter;
-//    for (iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end(); ++iter) {
-//        if (iter->second == vreg) return iter;
-//    }
-//    return iter;
-//}
-
 void LocalRegAllocation::printMapVec() {
     // print 2 maps and vector
     std::printf("\nmapMregVreg===========\n");
@@ -195,31 +215,147 @@ void LocalRegAllocation::printMapVec() {
     std::printf("\n\n");
 }
 
-//Operand LocalRegAllocation::setMregOperand() {
-//
-//}
+std::shared_ptr <ControlFlowGraph> LocalRegAllocation::transform_cfg() {
+    std::shared_ptr <ControlFlowGraph> result(new ControlFlowGraph());
 
-void LocalRegAllocation::calSpillAddr(const BasicBlock *orig_bb) {
-    int maxAvail = 0;
-    for (auto i = orig_bb->cbegin(); i != orig_bb->cend(); ++i) {
-//        LiveVregs::FactType factInsBef = m_liveVregAll.get_fact_before_instruction(orig_bb, *i);
-        int tempAvail = 0;
-        LiveVregs::FactType factInsAft = m_liveVregAll.get_fact_after_instruction(orig_bb, *i);
-        for (unsigned j = 0; j < LiveVregsAnalysis::MAX_VREGS; j++) {
-            if (factInsAft.test(j)
+    // map of basic blocks of original CFG to basic blocks in transformed CFG
+    std::map < BasicBlock * , BasicBlock * > block_map;
+
+    // allocate memory
+    allocateMemory();
+
+    // iterate over all basic blocks, transforming each one
+    for (auto i = m_cfg->bb_begin(); i != m_cfg->bb_end(); i++) {
+        BasicBlock *orig = *i;
+
+        // Transform the instructions
+        std::shared_ptr <InstructionSequence> transformed_bb = transform_basic_block(orig);
+
+        // Create transformed basic block; note that we set its
+        // code order to be the same as the code order of the original
+        // block (with the hope of eventually reconstructing an InstructionSequence
+        // with the transformed blocks in an order that matches the original
+        // block order)
+        BasicBlock *result_bb = result->create_basic_block(orig->get_kind(), orig->get_code_order(), orig->get_label());
+        for (auto j = transformed_bb->cbegin(); j != transformed_bb->cend(); ++j)
+            result_bb->append((*j)->duplicate());
+
+        block_map[orig] = result_bb;
+    }
+
+    // add edges to transformed CFG
+    for (auto i = m_cfg->bb_begin(); i != m_cfg->bb_end(); i++) {
+        BasicBlock *orig = *i;
+        const ControlFlowGraph::EdgeList &outgoing_edges = m_cfg->get_outgoing_edges(orig);
+        for (auto j = outgoing_edges.cbegin(); j != outgoing_edges.cend(); j++) {
+            Edge *orig_edge = *j;
+
+            BasicBlock *transformed_source = block_map[orig_edge->get_source()];
+            BasicBlock *transformed_target = block_map[orig_edge->get_target()];
+
+            result->create_edge(transformed_source, transformed_target, orig_edge->get_kind());
+        }
+    }
+
+    result->setTotalMemory(m_totalMemory);
+//    std::printf("set total memory: %d\n", m_totalMemory);
+    return result;
+}
+
+void LocalRegAllocation::calMemVreg() {
+    for (auto i = m_cfg->bb_begin(); i != m_cfg->bb_end(); i++) {
+        m_factBeg = m_liveVregAll.get_fact_at_beginning_of_block(*i);
+        m_factEnd = m_liveVregAll.get_fact_at_end_of_block(*i);
+
+        // class 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+        // do not consider vr0-vr9
+        for (auto j = 10; j < LiveVregsAnalysis::MAX_VREGS; j++) {
+            if (((m_factBeg.test(j) || m_factEnd.test(j)) && !m_funcVars.test(j))
+                    || (m_funcVars.test(j) && !m_mregFuncVars.test(j))) {
+                m_memVreg.set(j);
+//                std::printf("vreg %d is class 2, shall store in mem\n", j);
+            }
+        }
+    }
+}
+
+/**
+ * allocate memory for this function
+ *
+ * memory:
+ * 1. func vars that must be in memory (not a vreg): array/struct
+ * 2. (vregs that are alive between blocks - func vars) + func vars cannot be stored in callee-saved mregs
+ * 3. spilled temp vregs
+ *
+ * 1: m_localStorageClass1
+ * 2: m_memVreg
+ * 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+ * 3: reserve max place needed () and allocate later
+ */
+void LocalRegAllocation::allocateMemory() {
+    // allocate memory for class 2 vregs
+    // steps:
+    // get class 2 vregs
+    // get starting point: memClass1
+    // set mem (8 byte) for each class 2 vreg
+
+    calMemVreg();
+
+    long memClass1 = m_localStorageClass1;
+    if ((memClass1) % 16 != 0) {
+        memClass1 += (16 - (memClass1 % 16));
+    }
+
+    long memOffset = memClass1;
+    for (auto i = 0; i < LiveVregsAnalysis::MAX_VREGS; i++) {
+        if (m_memVreg.test(i)) {
+            // is class 2 vreg
+            m_mapVregMemClass2.insert(std::pair<int, long>(i, memOffset));
+            memOffset += 8;
+        }
+    }
+//    std::printf("class1mem: %ld, class1+2mem: %ld, ", memClass1, memOffset);
+    // reserve memory for class 3 spilled vregs
+    // calculate max place needed for class 3: spilled vregs
+    int maxSpill = calMaxSpill();
+    for (auto i = 0; i < maxSpill; i++) {
+        m_spillAddr.push_back(memOffset);
+        memOffset += 8;
+    }
+    m_totalMemory = memOffset;
+//    std::printf("maxSpill: %d, total memory: %ld\n", maxSpill, m_totalMemory);
+}
+
+int LocalRegAllocation::calMaxSpill() {
+    // calculate max place needed for class 3: spilled vregs
+    int maxSpill = 0;
+    for (auto iter = m_cfg->bb_begin(); iter != m_cfg->bb_end(); iter++) {
+        BasicBlock *bb = *iter;
+        if (bb->get_kind() != BASICBLOCK_INTERIOR || bb->get_length() == 0) {
+            continue;
+        }
+        initAvailMregs(bb);
+        m_factBeg = m_liveVregAll.get_fact_at_beginning_of_block(bb);
+        m_factEnd = m_liveVregAll.get_fact_at_end_of_block(bb);
+        int bbAlive = 0;
+        for (auto i = bb->cbegin(); i != bb->cend(); ++i) {
+//            LiveVregs::FactType factInsBef = m_liveVregAll.get_fact_before_instruction(bb, *i);
+            LiveVregs::FactType factInsAft = m_liveVregAll.get_fact_after_instruction(bb, *i);
+            int insAlive = 0;
+            for (unsigned j = 0; j < LiveVregsAnalysis::MAX_VREGS; j++) {
+                if (factInsAft.test(j)
                     && !m_factBeg.test(j)
                     && !m_factEnd.test(j)
                     && !m_funcVars.test(j)) {
-                // a vreg that needs to be allocated in mreg
-                tempAvail += 1;
+                    // a vreg that needs to be allocated in mreg
+                    insAlive += 1;
+                }
             }
+            bbAlive = std::max(bbAlive, insAlive);
         }
-        maxAvail = std::max(tempAvail, maxAvail);
+        int bbSpill = bbAlive - m_availMregs.size();
+        maxSpill = std::max(maxSpill, bbSpill);
     }
-    // no need to spill
-    if (maxAvail == 0) return;
-    // need to spill
-    for (auto i = 0; i < maxAvail; i++) {
-        m_spillAddr.push_back()
-    }
+    return maxSpill;
 }
+

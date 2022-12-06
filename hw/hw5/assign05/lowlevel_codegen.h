@@ -7,6 +7,9 @@
 #include "lowlevel.h"
 #include "instruction_seq.h"
 #include "print_lowlevel_code.h"
+#include "print_highlevel_code.h"
+#include "lowlevel_formatter.h"
+#include "highlevel_formatter.h"
 
 // A LowLevelCodeGen object transforms an InstructionSequence containing
 // high-level instructions into an InstructionSequence containing

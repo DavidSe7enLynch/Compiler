@@ -69,7 +69,7 @@ namespace {
 }
 
 Operand::Operand(Kind kind)
-        : m_kind(kind), m_basereg(-1), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false) {
+        : m_kind(kind), m_basereg(-1), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false), m_hasMemAddr(false) {
 }
 
 // ival1 is either basereg or imm_ival (depending on operand Kind)
@@ -87,7 +87,7 @@ Operand::Operand(Kind kind, long ival1)
 
 // ival2 is either index_reg or imm_ival/offset (depending on operand kind)
 Operand::Operand(Kind kind, int basereg, long ival2)
-        : m_kind(kind), m_basereg(basereg), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false) {
+        : m_kind(kind), m_basereg(basereg), m_index_reg(-1), m_imm_ival(-1), m_hasMreg(false), m_hasMemAddr(false) {
     const OperandProperties &props = oprops(kind);
     if (props.has_index_reg()) {
         m_index_reg = int(ival2);
@@ -227,5 +227,20 @@ void Operand::setMreg(std::pair<MachineReg, int> mreg) const {
 }
 
 std::pair<MachineReg, int> Operand::getMreg() const {
+    assert(m_hasMreg);
     return m_mreg;
+}
+
+bool Operand::hasMemAddr() const {
+    return m_hasMemAddr;
+}
+
+long Operand::getMemAddr() const {
+    assert(m_hasMemAddr);
+    return m_memAddr;
+}
+
+void Operand::setMemAddr(long memAddr) const {
+    m_hasMemAddr = true;
+    m_memAddr = memAddr;
 }

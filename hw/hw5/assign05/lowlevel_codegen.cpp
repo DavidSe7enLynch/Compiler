@@ -109,9 +109,8 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
 
         // local reg allocation
         LocalRegAllocation lra(cfg, hl_iseq);
-        // TODO: replace lra_cfg with cfg
-//        std::shared_ptr<ControlFlowGraph> lra_cfg = lra.transform_cfg();
         cfg = lra.transform_cfg();
+        m_total_memory_storage = cfg->getTotalMemory();
 
         // Convert the transformed high-level CFG back to an InstructionSequence
         cur_hl_iseq = cfg->create_instruction_sequence();
@@ -121,13 +120,11 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         cur_hl_iseq->set_funcdef_ast(funcdef_ast);
     }
 
-    std::printf("\n\nstart printing orig_highlevel code============\n\n");
-    PrintHighLevelCode().print_instructions(hl_iseq);
-    std::printf("\n\nend printing orig_highlevel code============\n\n");
-
-    std::printf("\n\nstart printing new_highlevel code============\n\n");
-    PrintHighLevelCode().print_instructions(cur_hl_iseq);
-    std::printf("\n\nend printing new_highlevel code============\n\n");
+//    std::printf("\n\norig_highlevel code============\n\n");
+//    PrintHighLevelCode().print_instructions(hl_iseq);
+//
+//    std::printf("\n\nnew_highlevel code============\n\n");
+//    PrintHighLevelCode().print_instructions(cur_hl_iseq);
 
     // keep info for global reg alloc
     cur_hl_iseq->setCalleeVec(hl_iseq->getCalleeVec());
@@ -137,11 +134,9 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
     // TODO: if optimizations are enabled, could do analysis/transformation of low-level code
 //    std::printf("\n\nstart printing orig_lowlevel code============\n\n");
 //    PrintLowLevelCode().print_instructions(orig_ll_iseq);
-//    std::printf("\n\nend printing orig_lowlevel code============\n\n");
 //
 //    std::printf("\n\nstart printing new_lowlevel code============\n\n");
 //    PrintLowLevelCode().print_instructions(cur_ll_iseq);
-//    std::printf("\n\nend printing new_lowlevel code============\n\n");
 
     return cur_ll_iseq;
 }
@@ -162,6 +157,7 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
     // optimization passes.
     ll_iseq->set_funcdef_ast(funcdef_ast);
 
+
     // TODO: recalculate memory for vregs
     // Determine the total number of bytes of memory storage
     // that the function needs. This should include both variables that
@@ -169,28 +165,30 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
     // any additional memory that is needed for virtual registers,
     // spilled machine registers, etc.
     m_localStorage = ll_iseq->get_funcdef_ast()->getLocalTotalStorage();
-    int numVreg = 0;
-    for (auto slot = hl_iseq->cbegin(); slot != hl_iseq->cend(); slot++) {
-        Instruction *ins = *slot;
-        int numOperand = ins->get_num_operands();
-        for (auto i = 0; i < numOperand; i++) {
-            Operand operand = ins->get_operand(i);
-            if (!operand.is_non_reg()) {
-                int vreg = operand.get_base_reg();
-                if (vreg > numVreg)
-                    numVreg = vreg;
+    if (!m_optimize) {
+        int numVreg = 0;
+        for (auto slot = hl_iseq->cbegin(); slot != hl_iseq->cend(); slot++) {
+            Instruction *ins = *slot;
+            int numOperand = ins->get_num_operands();
+            for (auto i = 0; i < numOperand; i++) {
+                Operand operand = ins->get_operand(i);
+                if (!operand.is_non_reg()) {
+                    int vreg = operand.get_base_reg();
+                    if (vreg > numVreg)
+                        numVreg = vreg;
+                }
             }
         }
-    }
-    m_total_memory_storage = m_localStorage + (numVreg - 9) * 8;
+        m_total_memory_storage = m_localStorage + (numVreg - 9) * 8;
 //    std::printf("m_total_memory_storage: %d\n", m_total_memory_storage);
 
-    // The function prologue will push %rbp, which should guarantee that the
-    // stack pointer (%rsp) will contain an address that is a multiple of 16.
-    // If the total memory storage required is not a multiple of 16, add to
-    // it so that it is.
-    if ((m_total_memory_storage) % 16 != 0)
-        m_total_memory_storage += (16 - (m_total_memory_storage % 16));
+        // The function prologue will push %rbp, which should guarantee that the
+        // stack pointer (%rsp) will contain an address that is a multiple of 16.
+        // If the total memory storage required is not a multiple of 16, add to
+        // it so that it is.
+        if ((m_total_memory_storage) % 16 != 0)
+            m_total_memory_storage += (16 - (m_total_memory_storage % 16));
+    }
 
 
     if (m_optimize) {
@@ -218,6 +216,10 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
 
         // Translate the high-level instruction into one or more low-level instructions
         translate_instruction(hl_ins, ll_iseq);
+
+        // print out to debug
+//        std::string insStr = HighLevelFormatter().format_instruction(hl_ins);
+//        std::printf("%s  finished\n", insStr.c_str());
     }
 
     return ll_iseq;
@@ -644,8 +646,8 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         return operand;
     }
 
-    // VREG
-    if (hl_opcode.get_kind() == Operand::VREG) {
+    // optimized global/local reg allocation
+    if (hl_opcode.has_base_reg()) {
         int numVreg = hl_opcode.get_base_reg();
 
         // for function variables
@@ -654,17 +656,37 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         iter = m_mregMap.find(numVreg);
         if (iter != m_mregMap.end()) {
             // in m_mregMap, use machine registers
-            Operand::Kind kind = select_mreg_kind(size);
+
+            Operand::Kind kind;
+            if (hl_opcode.get_kind() == Operand::VREG_MEM) {
+                kind = Operand::MREG64_MEM;
+            } else {
+                kind = select_mreg_kind(size);
+            }
+
             Operand operand(kind, iter->second);
             return operand;
         }
 
         // for temp vregs with mreg allocation
         if (hl_opcode.hasMreg()) {
-            int size = hl_opcode.getMreg().second;
-            Operand mregOperand = Operand(select_mreg_kind(size), hl_opcode.getMreg().first);
+//            std::printf("in select_ll_opereand, temp vreg with mreg\n");
+            Operand::Kind kind;
+            if (hl_opcode.get_kind() == Operand::VREG_MEM) {
+                kind = Operand::MREG64_MEM;
+            } else {
+                int size = hl_opcode.getMreg().second;
+                kind = select_mreg_kind(size);
+            }
+
+            Operand mregOperand = Operand(kind, hl_opcode.getMreg().first);
             return mregOperand;
         }
+    }
+
+    // VREG
+    if (hl_opcode.get_kind() == Operand::VREG) {
+        int numVreg = hl_opcode.get_base_reg();
 
         // map vreg to memory by numbers
         // rule:
@@ -714,14 +736,18 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
 
     // LABEL
     if (hl_opcode.is_label()) {
-        if (hl_opcode.get_kind() == Operand::IMM_LABEL) {
-            return Operand(Operand::IMM_LABEL, hl_opcode.get_label());
-        } else {
-            return Operand(Operand::LABEL, hl_opcode.get_label());
-        }
+//        std::printf("select_ll_operand, label\n");
+        return Operand(Operand::LABEL, hl_opcode.get_label());
+    }
+
+    // IMM LABEL
+    if (hl_opcode.is_imm_label()) {
+//        std::printf("select_ll_operand, imm label\n");
+        return Operand(Operand::IMM_LABEL, hl_opcode.get_label());
     }
 
     // VREG_MEM
+    // for un-optimized version: all vregs are in memory
     if (hl_opcode.get_kind() == Operand::VREG_MEM) {
         // steps:
         // movq src to r10
@@ -733,6 +759,7 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         LowLevelOpcode movOpcode1 = MINS_MOVQ;
 //        LowLevelOpcode movOpcode2 = select_ll_opcode(MINS_MOVB, size);
 
+        // TODO: copy properly
         Operand highOperand = Operand(Operand::VREG, hl_opcode.get_base_reg());
         Operand srcOperand = get_ll_operand(highOperand, 8, ll_iseq);
 

@@ -5,7 +5,7 @@
 #include "cfg.h"
 
 class ControlFlowGraphTransform {
-private:
+protected:
   std::shared_ptr<ControlFlowGraph> m_cfg;
 
 public:

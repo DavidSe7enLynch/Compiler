@@ -1,18 +1,29 @@
-int sum(int *a, int n) {
-    int i, sum;
-    sum = 0;
-    for (i = 0; i < n; i = i + 1) {
-        sum = sum + a[i];
-    }
-    return sum;
-}
+void print_i32(int n);
+void print_nl(void);
+
+struct Point {
+    int x, y;
+};
 
 int main(void) {
-    int arr[3];
-    arr[0] = 1;
-    arr[1] = 2;
-    arr[2] = 3;
-    int result;
-    result = sum(arr, 3);
-    return result;
+    struct Point points[3];
+    int i, count;
+
+    count = 11;
+
+    for (i = 0; i < 3; i = i + 1) {
+        points[i].x = count;
+        count = count + 1;
+        points[i].y = count;
+        count = count + 1;
+    }
+
+    for (i = 2; i >= 0; i = i - 1) {
+        print_i32(points[i].x);
+        print_nl();
+        print_i32(points[i].y);
+        print_nl();
+    }
+
+    return 0;
 }

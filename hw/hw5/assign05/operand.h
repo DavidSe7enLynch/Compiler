@@ -41,10 +41,14 @@ private:
     int m_basereg, m_index_reg;
     long m_imm_ival;
     std::string m_label;
+
     mutable bool m_hasMreg;
     // <mreg, size>
     // size = 1, 2, 4, 8
     mutable std::pair<MachineReg, int> m_mreg;
+
+    mutable bool m_hasMemAddr;
+    mutable long m_memAddr;
 
 public:
     Operand(Kind kind = NONE);
@@ -115,14 +119,15 @@ public:
     bool isSame(const Operand &other) const;
 
     bool isConstNum();
-
     long getConstNum();
 
     bool hasMreg() const;
-
     std::pair<MachineReg, int> getMreg() const;
-
     void setMreg(std::pair<MachineReg, int> mreg) const;
+
+    bool hasMemAddr() const;
+    long getMemAddr() const;
+    void setMemAddr(long memAddr) const;
 };
 
 #endif // OPERAND_H

@@ -65,7 +65,8 @@ Edge::~Edge() {
 
 ControlFlowGraph::ControlFlowGraph()
   : m_entry(nullptr)
-  , m_exit(nullptr) {
+  , m_exit(nullptr)
+  , m_totalMemory(0) {
 }
 
 ControlFlowGraph::~ControlFlowGraph() {
@@ -397,6 +398,15 @@ void ControlFlowGraph::delete_edges(EdgeMap &edge_map) {
     }
   }
 }
+
+long ControlFlowGraph::getTotalMemory() const {
+    return m_totalMemory;
+}
+
+void ControlFlowGraph::setTotalMemory(long totalMemory) const {
+    m_totalMemory = totalMemory;
+}
+
 
 ////////////////////////////////////////////////////////////////////////
 // ControlFlowGraphBuilder implementation

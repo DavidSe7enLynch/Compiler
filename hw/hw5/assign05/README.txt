@@ -24,3 +24,14 @@ memory:
 so we need to deal with 23
 each vreg takes 8 bytes
 
+
+
+issues met and solved:
+
+over the size of int when doing compile-time const number calculation example22
+
+imm_label, label example16
+
+negative memory example1
+
+reassign (a compile-time const num) to an existed func var example22
