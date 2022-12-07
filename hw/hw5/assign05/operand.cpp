@@ -244,3 +244,7 @@ void Operand::setMemAddr(long memAddr) const {
     m_hasMemAddr = true;
     m_memAddr = memAddr;
 }
+
+void Operand::setKind(Operand::Kind kind) const {
+    m_kind = kind;
+}

@@ -120,11 +120,12 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
         cur_hl_iseq->set_funcdef_ast(funcdef_ast);
     }
 
-    std::printf("\n\norig_highlevel code============\n\n");
-    PrintHighLevelCode().print_instructions(hl_iseq);
-
-    std::printf("\n\nnew_highlevel code============\n\n");
-    PrintHighLevelCode().print_instructions(cur_hl_iseq);
+    if(m_isPrint) {
+        std::printf("\n\norig_highlevel code============\n\n");
+        PrintHighLevelCode().print_instructions(hl_iseq);
+        std::printf("\n\nnew_highlevel code============\n\n");
+        PrintHighLevelCode().print_instructions(cur_hl_iseq);
+    }
 
     // keep info for global reg alloc
     cur_hl_iseq->setCalleeVec(hl_iseq->getCalleeVec());
@@ -216,6 +217,7 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
 
         // Translate the high-level instruction into one or more low-level instructions
         translate_instruction(hl_ins, ll_iseq);
+        m_ifUseRAX = false;
 
         // print out to debug
 //        std::string insStr = HighLevelFormatter().format_instruction(hl_ins);
@@ -688,6 +690,12 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
     if (hl_opcode.get_kind() == Operand::VREG) {
         int numVreg = hl_opcode.get_base_reg();
 
+        // for temp vregs that need to be stored in memory
+        if (hl_opcode.hasMemAddr()) {
+            // %rbp: 7
+            return Operand(Operand::MREG64_MEM_OFF, 7, hl_opcode.getMemAddr());
+        }
+
         // map vreg to memory by numbers
         // rule:
         // vr0: %eax
@@ -759,8 +767,9 @@ Operand LowLevelCodeGen::get_ll_operand(Operand hl_opcode, int size,
         LowLevelOpcode movOpcode1 = MINS_MOVQ;
 //        LowLevelOpcode movOpcode2 = select_ll_opcode(MINS_MOVB, size);
 
-        // TODO: copy properly
-        Operand highOperand = Operand(Operand::VREG, hl_opcode.get_base_reg());
+
+        Operand highOperand = Operand(hl_opcode);
+        highOperand.setKind(Operand::VREG);
         Operand srcOperand = get_ll_operand(highOperand, 8, ll_iseq);
 
         Operand r11;

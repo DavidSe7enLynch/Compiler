@@ -37,7 +37,7 @@ public:
     };
 
 private:
-    Kind m_kind;
+    mutable Kind m_kind;
     int m_basereg, m_index_reg;
     long m_imm_ival;
     std::string m_label;
@@ -128,6 +128,8 @@ public:
     bool hasMemAddr() const;
     long getMemAddr() const;
     void setMemAddr(long memAddr) const;
+
+    void setKind(Operand::Kind kind) const;
 };
 
 #endif // OPERAND_H

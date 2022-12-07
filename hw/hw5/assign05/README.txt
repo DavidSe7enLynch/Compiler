@@ -37,3 +37,8 @@ negative memory example1
 reassign (a compile-time const num) to an existed func var example22
 
 consider "count + 1" as the same key
+
+forget to use the bottom as memoffset: 0 or -8 example28
+
+why my LVN could be correct, each redefine of a funcvar will be assigned to a new valnum, which makes the key
+different, so none will be eliminated

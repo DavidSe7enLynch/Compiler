@@ -15,6 +15,7 @@
 
 class HighlevelLocalOptimize : public ControlFlowGraphTransform {
 private:
+    bool m_isPrint = false;
     // map 1: <vreg: int, valnum class>
     // map 2: <lvnKey class, valnum class>
     // beg fact

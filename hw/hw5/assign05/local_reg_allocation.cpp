@@ -118,17 +118,20 @@ std::shared_ptr <InstructionSequence> LocalRegAllocation::transform_basic_block(
                     Operand newOperand(operand.get_kind(), operand.get_base_reg());
                     newOperand.setMreg(mregPair);
                     newIns->setOperand(j, newOperand);
-//                    std::printf("vreg %d mapped to mreg %d, mregPair<%d, %d>\n", vreg, (int)mreg, (int)mreg, size);
+                    if(m_isPrint) std::printf("vreg %d mapped to mreg %d, mregPair<%d, %d>\n", vreg, (int)mreg, (int)mreg, size);
                 }
             }
         }
         new_bb->append(newIns);
-//        printMapVec();
+
+        if(m_isPrint) printMapVec();
     }
 
-//    std::printf("\n\nstart printing block %d============\n\n", orig_bb->get_id());
-//    PrintHighLevelCode().print_instructions(new_bb);
-//    std::printf("\n\nend printing block %d============\n\n", orig_bb->get_id());
+    if(m_isPrint) {
+        std::printf("\n\nstart printing block %d============\n\n", orig_bb->get_id());
+        PrintHighLevelCode().print_instructions(new_bb);
+        std::printf("\n\nend printing block %d============\n\n", orig_bb->get_id());
+    }
     return new_bb;
 }
 
@@ -169,16 +172,18 @@ void LocalRegAllocation::clearDeadAlloc(const BasicBlock *orig_bb, Instruction *
     LiveVregs::FactType factInsBef = m_liveVregAll.get_fact_before_instruction(orig_bb, ins);
     LiveVregs::FactType factInsAft = m_liveVregAll.get_fact_after_instruction(orig_bb, ins);
 
-//    std::printf("\n%s\n", m_liveVregAll.fact_to_string(factInsBef).c_str());
-//    std::printf("%s\n", HighLevelFormatter().format_instruction(ins).c_str());
-//    std::printf("%s\n", m_liveVregAll.fact_to_string(factInsAft).c_str());
-//    printMapVec();
+    if(m_isPrint) {
+        std::printf("\n%s\n", m_liveVregAll.fact_to_string(factInsBef).c_str());
+        std::printf("%s\n", HighLevelFormatter().format_instruction(ins).c_str());
+        std::printf("%s\n", m_liveVregAll.fact_to_string(factInsAft).c_str());
+        printMapVec();
+    }
 
     for (auto iter = m_mapMregVreg.begin(); iter != m_mapMregVreg.end();) {
         if (!factInsBef.test(iter->second)) {
             // dead vreg
             // erase from 2 maps
-//            std::printf("vreg %d died, mreg %d released\n", iter->second, (int)iter->first);
+            if(m_isPrint) std::printf("vreg %d died, mreg %d released\n", iter->second, (int)iter->first);
             m_availMregs.push_back(iter->first);
             auto iter_mapVregMreg = m_mapVregMreg.find(iter->second);
             assert(iter_mapVregMreg != m_mapVregMreg.end());
@@ -258,7 +263,7 @@ std::shared_ptr <ControlFlowGraph> LocalRegAllocation::transform_cfg() {
     }
 
     result->setTotalMemory(m_totalMemory);
-//    std::printf("set total memory: %d\n", m_totalMemory);
+    if(m_isPrint) std::printf("set total memory: %d\n", m_totalMemory);
     return result;
 }
 
@@ -273,7 +278,7 @@ void LocalRegAllocation::calMemVreg() {
             if (((m_factBeg.test(j) || m_factEnd.test(j)) && !m_funcVars.test(j))
                     || (m_funcVars.test(j) && !m_mregFuncVars.test(j))) {
                 m_memVreg.set(j);
-//                std::printf("vreg %d is class 2, shall store in mem\n", j);
+                if(m_isPrint) std::printf("vreg %d is class 2, shall store in mem\n", j);
             }
         }
     }
@@ -310,20 +315,20 @@ void LocalRegAllocation::allocateMemory() {
     for (auto i = 0; i < LiveVregsAnalysis::MAX_VREGS; i++) {
         if (m_memVreg.test(i)) {
             // is class 2 vreg
-            m_mapVregMemClass2.insert(std::pair<int, long>(i, memOffset));
             memOffset += 8;
+            m_mapVregMemClass2.insert(std::pair<int, long>(i, -memOffset));
         }
     }
-//    std::printf("class1mem: %ld, class1+2mem: %ld, ", memClass1, memOffset);
+    if(m_isPrint) std::printf("class1mem: %ld, class1+2mem: %ld, ", memClass1, memOffset);
     // reserve memory for class 3 spilled vregs
     // calculate max place needed for class 3: spilled vregs
     int maxSpill = calMaxSpill();
     for (auto i = 0; i < maxSpill; i++) {
-        m_spillAddr.push_back(memOffset);
         memOffset += 8;
+        m_spillAddr.push_back(memOffset);
     }
     m_totalMemory = memOffset;
-//    std::printf("maxSpill: %d, total memory: %ld\n", maxSpill, m_totalMemory);
+    if(m_isPrint) std::printf("maxSpill: %d, total memory: %ld\n", maxSpill, m_totalMemory);
 }
 
 int LocalRegAllocation::calMaxSpill() {

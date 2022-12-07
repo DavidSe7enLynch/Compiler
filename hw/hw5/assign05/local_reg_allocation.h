@@ -34,6 +34,7 @@
  */
 class LocalRegAllocation : public ControlFlowGraphTransform {
 private:
+    bool m_isPrint = false;
     // for whole cfg, will not change once initialized
     int m_localStorageClass1;
     LiveVregs m_liveVregAll;
