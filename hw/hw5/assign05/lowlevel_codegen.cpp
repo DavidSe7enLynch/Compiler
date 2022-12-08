@@ -104,13 +104,17 @@ std::shared_ptr <InstructionSequence> LowLevelCodeGen::generate(const std::share
 
         // Do local optimizations
         // LVN
-        HighlevelLocalOptimize hl_opts(cfg);
-        cfg = hl_opts.transform_cfg();
+        if (m_isLVN) {
+            HighlevelLocalOptimize hl_opts(cfg);
+            cfg = hl_opts.transform_cfg();
+        }
 
         // local reg allocation
-        LocalRegAllocation lra(cfg, hl_iseq);
-        cfg = lra.transform_cfg();
-        m_total_memory_storage = cfg->getTotalMemory();
+        if (m_isLocalRegALloc) {
+            LocalRegAllocation lra(cfg, hl_iseq);
+            cfg = lra.transform_cfg();
+            m_total_memory_storage = cfg->getTotalMemory();
+        }
 
         // Convert the transformed high-level CFG back to an InstructionSequence
         cur_hl_iseq = cfg->create_instruction_sequence();
@@ -166,7 +170,7 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
     // any additional memory that is needed for virtual registers,
     // spilled machine registers, etc.
     m_localStorage = ll_iseq->get_funcdef_ast()->getLocalTotalStorage();
-    if (!m_optimize) {
+    if (!m_optimize || !m_isLocalRegALloc) {
         int numVreg = 0;
         for (auto slot = hl_iseq->cbegin(); slot != hl_iseq->cend(); slot++) {
             Instruction *ins = *slot;
@@ -180,7 +184,11 @@ LowLevelCodeGen::translate_hl_to_ll(const std::shared_ptr <InstructionSequence> 
                 }
             }
         }
-        m_total_memory_storage = m_localStorage + (numVreg - 9) * 8;
+        if (numVreg >= 10) {
+            m_total_memory_storage = m_localStorage + (numVreg - 9) * 8;
+        } else {
+            m_total_memory_storage = m_localStorage;
+        }
 //    std::printf("m_total_memory_storage: %d\n", m_total_memory_storage);
 
         // The function prologue will push %rbp, which should guarantee that the

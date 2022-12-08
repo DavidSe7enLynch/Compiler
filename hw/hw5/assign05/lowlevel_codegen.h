@@ -16,7 +16,9 @@
 // low-level (x86-64) instructions.
 class LowLevelCodeGen {
 private:
-    bool m_isPrint = true;
+    bool m_isPrint = false;
+    bool m_isLVN = false;
+    bool m_isLocalRegALloc = false;
     int m_total_memory_storage;
     int m_localStorage;
     bool m_optimize;

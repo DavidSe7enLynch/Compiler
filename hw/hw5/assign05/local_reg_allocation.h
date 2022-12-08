@@ -29,7 +29,7 @@
     2 need to be determined for the whole cfg
     3 need to be determined for each block
     each vreg takes 8 bytes
-    2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+    2: (alive at beg/end of blocks && !func vars) || (func vars && !mreg_allocated func vars)
 
  */
 class LocalRegAllocation : public ControlFlowGraphTransform {
@@ -108,7 +108,7 @@ private:
      *
      * 1: m_localStorageClass1
      * 2: m_memVreg
-     * 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+     * 2: (alive at beg/end of blocks && !func vars) || (func vars && !mreg_allocated func vars)
      * 3: reserve max place needed () and allocate later
      */
     void allocateMemory();

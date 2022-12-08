@@ -42,3 +42,5 @@ forget to use the bottom as memoffset: 0 or -8 example28
 
 why my LVN could be correct, each redefine of a funcvar will be assigned to a new valnum, which makes the key
 different, so none will be eliminated
+
+No use of funcvar??might be the problem of example29

@@ -272,7 +272,7 @@ void LocalRegAllocation::calMemVreg() {
         m_factBeg = m_liveVregAll.get_fact_at_beginning_of_block(*i);
         m_factEnd = m_liveVregAll.get_fact_at_end_of_block(*i);
 
-        // class 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+        // class 2: (alive at beg/end of blocks && !func vars) || (func vars && !mreg_allocated func vars)
         // do not consider vr0-vr9
         for (auto j = 10; j < LiveVregsAnalysis::MAX_VREGS; j++) {
             if (((m_factBeg.test(j) || m_factEnd.test(j)) && !m_funcVars.test(j))
@@ -294,7 +294,7 @@ void LocalRegAllocation::calMemVreg() {
  *
  * 1: m_localStorageClass1
  * 2: m_memVreg
- * 2: (alive at beg/end of blocks && !func vars) || !mreg_allocated func vars
+ * 2: (alive at beg/end of blocks && !func vars) || (func vars && !mreg_allocated func vars)
  * 3: reserve max place needed () and allocate later
  */
 void LocalRegAllocation::allocateMemory() {
@@ -327,6 +327,11 @@ void LocalRegAllocation::allocateMemory() {
         memOffset += 8;
         m_spillAddr.push_back(memOffset);
     }
+
+//    // align to 16
+//    if ((memOffset) % 16 != 0) {
+//        memOffset += (16 - (memOffset % 16));
+//    }
     m_totalMemory = memOffset;
     if(m_isPrint) std::printf("maxSpill: %d, total memory: %ld\n", maxSpill, m_totalMemory);
 }

@@ -26,12 +26,6 @@
 
 
 
-- BasicBlock or InstructionSequence
-- how to spill / restore
-- how to match
-
-
-
 ##### Assign5
 
 - functional globally assign machine registers for (at least some) local variables, especially loop variables (callee saved regs, need to be push/pop)
